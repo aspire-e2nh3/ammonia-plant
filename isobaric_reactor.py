@@ -289,7 +289,7 @@ def compressor(s, p_out, eta=0.7):
     s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
     s_out.update()
-    return s, power
+    return s_out, power
 
 
 def psa_estimate(N2_mol, p_out=10, eta=0.7):
