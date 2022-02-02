@@ -1,4 +1,4 @@
-from ammonia_plant.isobaric_reactor import *
+from isobaric_reactor import *
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
