@@ -4,9 +4,11 @@
 # no power use yet - this will come?
 # assumptions
 # - isobaric - constant pressure in reactor
+import copy
 import math
 import pyromat as pm
 import numpy as np
+
 pm.config['unit_energy'] = 'J'  # default for pyromat is kJ
 
 
@@ -34,8 +36,7 @@ def sat_point_lookup(P_sat):
              3.7410320e+02, 3.7535757e+02, 3.7661614e+02, 3.7787893e+02, 3.7914596e+02, 3.8041723e+02, 3.8169277e+02,
              3.8297258e+02, 3.8425669e+02, 3.8554510e+02, 3.8683783e+02, 3.8813489e+02, 3.8943630e+02, 3.9074208e+02,
              3.9205224e+02, 3.9336678e+02, 3.9468574e+02, 3.9600912e+02, 3.9733693e+02, 3.9866920e+02, 4.0000594e+02,
-             4.0134715e+02, 4.0269287e+02, 4.0367440e+02],
-            [1.0167000e-01, 1.0466000e-01, 1.0836000e-01, 1.1227000e-01, 1.1617000e-01, 1.2043000e-01, 1.2462000e-01,
+             4.0134715e+02, 4.0269287e+02, 4.0367440e+02], [1.0167000e-01, 1.0466000e-01, 1.0836000e-01, 1.1227000e-01, 1.1617000e-01, 1.2043000e-01, 1.2462000e-01,
              1.2919000e-01, 1.3359000e-01, 1.3858000e-01, 1.4340000e-01, 1.4857000e-01, 1.5372000e-01, 1.5927000e-01,
              1.6490000e-01, 1.7085000e-01, 1.7689000e-01, 1.8315000e-01, 1.8975000e-01, 1.9634000e-01, 2.0355000e-01,
              2.1048000e-01, 2.1835000e-01, 2.2578000e-01, 2.3423000e-01, 2.4220000e-01, 2.5109000e-01, 2.5981000e-01,
@@ -57,46 +58,32 @@ def sat_point_lookup(P_sat):
              6.3350700e+00, 6.5003600e+00, 6.6571000e+00, 6.8132200e+00, 6.9909900e+00, 7.1503400e+00, 7.3274600e+00,
              7.5089700e+00, 7.6949800e+00, 7.8754400e+00, 8.0445800e+00, 8.2704400e+00, 8.4644100e+00, 8.6573400e+00,
              8.8889500e+00, 9.0857000e+00, 9.2987800e+00, 9.5414100e+00, 9.7588900e+00, 9.9877600e+00, 1.0241760e+01,
-             1.0481950e+01, 1.0727780e+01, 1.0953950e+01]]
-    return float(np.interp(P_sat, [10*x for x in data[1]], data[0]))
+             1.0481950e+01, 1.0727780e+01, 1.0953950e+01]]  # data in K, MPa
+    return float(np.interp(P_sat, [10 * x for x in data[1]], data[0]))
 
 
-def heat_exchanger_hotgas2coldgas(INPUT1, INPUT2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
-
-    :param INPUT1:
-    :param INPUT2:
-    :param e1:
+    Heat exchanger: e-NTU form.
+    :param s1_out: state of hot stream input
+    :param s2_out: state of cold stream input
+    :param e1: efficiency?
     :return:
     '''
-    [H2in1, N2in1, NH3in1, Tin1, Pin1] = INPUT1  # hot stream from reactor
-    [H2in2, N2in2, NH3in2, Tin2, Pin2] = INPUT2  # cold stream into reactor
+    s1.update_special()
+    s2.update_special()
 
-    mN2in1 = N2in1 * 28.0134 / 1000
-    mH2in1 = H2in1 * 2.016 / 1000
-    mNH3in1 = NH3in1 * 17.03 / 1000
-    mtot1 = mN2in1 + mH2in1 + mNH3in1
+    s1_out = copy.deepcopy(s1)
+    s2_out = copy.deepcopy(s2)
 
-    mN2in2 = N2in2 * 28.0134 / 1000
-    mH2in2 = H2in2 * 2.016 / 1000
-    mNH3in2 = NH3in2 * 17.03 / 1000
-    mtot2 = mN2in2 + mH2in2 + mNH3in2
+    Cmin = min(s1_out.cp * s1_out.mass_tot, s2_out.cp * s2_out.mass_tot)
+    # Cmax = max(s1.cp*s1.mass_tot, s2.cp*s2.mass_tot)
+    # Cr = Cmin / Cmax
 
-    N2data = pm.get('ig.N2')
-    H2data = pm.get('ig.H2')
-    NH3data = pm.get('ig.NH3')
+    Q = e1 * (Cmin * (s1_out.T - s2_out.T))
 
-    C_1 = float(mN2in1 * N2data.cp(Tin1, Pin1) + mH2in1 * H2data.cp(Tin1, Pin1) + mNH3in1 * NH3data.cp(Tin1, Pin1))  # J/kg/K
-    C_2 = float(mN2in2 * N2data.cp(Tin2, Pin2) + mH2in2 * H2data.cp(Tin2, Pin2) + mNH3in2 * NH3data.cp(Tin2, Pin2))  # J/kg/K
-
-    Cmin = min(C_1, C_2)  # should be C1
-    Cmax = max(C_1, C_2)  # should be C2
-    Cr = Cmin/Cmax
-
-    Q = e1*(Cmin*(Tin1-Tin2))
-
-    Tout1 = Tin1 - Q / C_1
-    Tout2 = Tin2 + Q / C_2
+    s1_out.T += - Q / (s1_out.cp * s1_out.mass_tot)
+    s2_out.T += Q / (s2_out.cp * s2_out.mass_tot)
 
     # NTU = np.log(1-e1*(1+Cr))/(1+Cr)
     #
@@ -120,234 +107,168 @@ def heat_exchanger_hotgas2coldgas(INPUT1, INPUT2, e1=0.8):  # mol,mol,mol,K,bar,
     # F_fact = 0.316*Re**-0.25
     # Del_P = F_fact*rho_mix*Vmax^2*l1/2/D
 
-    OUTPUT1 = [H2in1,N2in1,NH3in1,Tout1,Pin1] # out to condensor
-    OUTPUT2 = [H2in2,N2in2,NH3in2,Tout2,Pin2] # out to reactor
+    s1_out.update()
+    s2_out.update()
+    return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
-    return OUTPUT1,OUTPUT2, Tout2-Tin2
 
+def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+273, Vmax=5,
+                             D=0.006):  # -,kg,K,m/s,m
+    s.update_special()
+    s_out = copy.deepcopy(s)
 
-def heat_exchanger_water2gas(INPUT,water_mass_flow,T_cold_in=10+273,Vmax=5,D=0.006): ### mol,mol,mol,K,bar,K,m/s,mm check units!!
+    pp_NH3 = s_out.yNH3 * s_out.p
+    if cool_to_temp==0:
+        T_sat = sat_point_lookup(pp_NH3)
+    else:
+        T_sat = cool_to_temp
+    C_mix = s_out.cp * s_out.mass_tot  # J/kg/K
 
-    [H2in, N2in, NH3in, T_hot_in, Pin] = INPUT
-    tot_in_mol = N2in + H2in + NH3in
-    yN2 = N2in / tot_in_mol
-    yH2 = H2in / tot_in_mol
-    yNH3 = NH3in / tot_in_mol
+    Q = C_mix * (s_out.T - T_sat)
 
-    mN2in = N2in * 28.0134/1000
-    mH2in = H2in * 2.016/1000
-    mNH3in = NH3in * 17.03/1000
-    m_mix = mN2in + mH2in + mNH3in
-
-    N2data = pm.get('ig.N2')
-    H2data = pm.get('ig.H2')
-    NH3data = pm.get('ig.NH3')
-
-    P_NH3 = yNH3*Pin
-
-    T_sat = sat_point_lookup(P_NH3)
-
-    C_mix = float(mN2in * N2data.cp(T_hot_in, Pin) + mH2in * H2data.cp(T_hot_in, Pin) + mNH3in * NH3data.cp(T_hot_in, Pin)) # J/kg/K
-
-    Q = C_mix * (T_hot_in - T_sat)
-
-    C_cool = water_mass_flow * 4180# 1 kg/s * 4.18 J/kg/K
+    C_cool = water_mass_flow * 4180  # 1 kg/s * 4.18 J/kg/K
 
     Cmin = min(C_cool, C_mix)
     Cmax = max(C_cool, C_mix)
-    Cr = Cmin/Cmax
+    Cr = Cmin / Cmax
 
+    e1 = Q / (Cmin * (s_out.T - T_cold_in))
 
-    e1 = Q/(Cmin*(T_hot_in-T_cold_in))
+    NTU = - np.log(1 - e1 * (1 + Cr)) / (1 + Cr)  #
 
-    NTU = - np.log(1-e1*(1+Cr))/(1+Cr) #
-
-
-    U1 = 300 # W/m^2/K
+    U1 = 300  # W/m^2/K
 
     A1 = NTU * Cmin / U1
 
-    rho_mix = float(yN2 * N2data.d(T_hot_in, Pin) + yH2 * H2data.d(T_hot_in, Pin) + yNH3 * NH3data.d(T_hot_in, Pin)) # kg/m^3
-
-    Q_flow = m_mix / rho_mix # m^3/s?
+    Q_flow = s_out.mass_tot / s_out.rho  # m^3/s?
     num_p = 4 * Q_flow / (Vmax * np.pi * D ** 2)
     l1 = A1 / (num_p * np.pi * D)
 
-    mu_N2 = 1.663 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 107) / (T_hot_in + 107)
-    mu_H2 = 8.411 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 97) / (T_hot_in + 97)
-    mu_NH3 = 0.919 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 370) / (T_hot_in + 370)
+    Re = s_out.rho * Vmax * D / s_out.mu
+    F_fact = 0.316 * Re ** -0.25
+    Del_P = F_fact * s_out.rho * Vmax ** 2 * l1 / 2 / D
 
-    mu_mix = yN2 * mu_N2 + yH2 * mu_H2 + yNH3 * mu_NH3
+    s_out.T = T_sat
+    s_out.p += - Del_P * 10 ** -5
+    s_out.update()
+    return s_out, Q
 
-    Re = rho_mix*Vmax*D/mu_mix
-    F_fact = 0.316*Re**-0.25
-    Del_P = F_fact*rho_mix*Vmax**2*l1/2/D
 
-    OUTPUT = [H2in,N2in,NH3in,T_sat,Pin-Del_P*10**-5]
-    return OUTPUT, Q
+def condensor(s, e2=0.8, Vmax=5, D=0.006):  ### check units!!
 
-def condensor(INPUT,e2=0.8,T_cold_in=10+273,Vmax=5,D=6*0.001): ### check units!!
+    s.update_special()
+    s_out = copy.deepcopy(s)
 
-    [H2in, N2in, NH3in, T_hot_in, Pin] = INPUT
-    tot_in_mol = N2in + H2in + NH3in
-    yN2 = N2in / tot_in_mol
-    yH2 = H2in / tot_in_mol
-    yNH3 = NH3in / tot_in_mol
+    Del_H_c = 22.7 * 1000 * s_out.NH3  # J/mol * mol
 
-    mN2in = N2in * 28.0134/1000
-    mH2in = H2in * 2.016/1000
-    mNH3in = NH3in * 17.03/1000
-    m_mix = mN2in + mH2in + mNH3in
+    C_mix = s_out.cp * s_out.mass_tot
 
-    N2data = pm.get('ig.N2')
-    H2data = pm.get('ig.H2')
-    NH3data = pm.get('ig.NH3')
-
-    Del_H_c = 22.7*NH3in # kJ/mol * mol
-
-    C_mix = float(mN2in * N2data.cp(T_hot_in, Pin) + mH2in * H2data.cp(T_hot_in, Pin) + mNH3in * NH3data.cp(T_hot_in, Pin)) # J/kg/K
-
-    C_cool = 1 * 4180# 1 kg/s * 4180 J/kg/K
+    C_cool = 0.1 * 4180  # 1 kg/s * 4180 J/kg/K
 
     Cmin = min(C_cool, C_mix)
     Cmax = max(C_cool, C_mix)
-    Cr = Cmin/Cmax
+    Cr = Cmin / Cmax
 
+    # e2 = Del_H_c/(Cmin*(T_hot_in-T_cold_in))
 
+    Del_H_act = e2 * Del_H_c  # J
 
-    #e2 = Del_H_c/(Cmin*(T_hot_in-T_cold_in))
+    NTU = - np.log(1 - e2 * (1 + Cr)) / (1 + Cr)  #
 
-    Del_H_act = e2*Del_H_c #J
+    U2 = 750  # W/m^2/K
 
-    NTU = -np.log(1-e2)
+    A2 = NTU * Cmin / U2
 
-
-    U2 = 750 # W/m^2/K
-
-    A1 = NTU * Cmin / U2
-    rho_mix = float(yN2 * N2data.d(T_hot_in, Pin) + yH2 * H2data.d(T_hot_in, Pin) + yNH3 * NH3data.d(T_hot_in, Pin))
-    Q_flow = m_mix/rho_mix
+    Q_flow = s_out.mass_tot / s_out.rho  # m^3/s?
     num_p = 4 * Q_flow / (Vmax * np.pi * D ** 2)
-    l1 = A1 / (num_p * np.pi * D)
+    l1 = A2 / (num_p * np.pi * D)
 
-    mu_N2 = 1.663 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 107) / (T_hot_in + 107)
-    mu_H2 = 8.411 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 97) / (T_hot_in + 97)
-    mu_NH3 = 0.919 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 370) / (T_hot_in + 370)
+    Re = s_out.rho * Vmax * D / s_out.mu
+    F_fact = 0.316 * Re ** -0.25
+    Del_P = F_fact * s_out.rho * Vmax ** 2 * l1 / 2 / D
 
-    mu_mix = yN2 * mu_N2 + yH2 * mu_H2 + yNH3 * mu_NH3
+    s_out.p += - Del_P * 10 ** -5
+    s_out.NH3 = s_out.NH3 * (1 - e2)
+    s_out.update()
+    return s_out, Del_H_act
 
-    Re = rho_mix*Vmax*D/mu_mix
-    F_fact = 0.316*Re**-0.25
-    Del_P = F_fact*rho_mix*Vmax**2*l1/2/D
 
-    OUTPUT = [H2in,N2in,NH3in*(1-e2),T_hot_in,Pin-Del_P*10**-5]
-    return OUTPUT, Del_H_act
-
-def reactorStep(INPUT): #mol/s, K, Pa
+def reactorStep(s, dX, area):  # mol/s, K, Pa
     '''
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 
-    :param INPUT: molar flow rates of H2,N2,NH3, and Temp and Pressure of inlet to Bed step
+    :param  s: state class. Should include at least some NH3 or reaction will shoot up
+            dX: X step.
+            area: area of reactor bed.
 
-    :return: molar flow rates of H2,N2,NH3, and Temp and Pressure of outlet from Bed step
+    :return s: state class
     '''
-    [H2in, N2in, NH3in, Tin, Pin, DelX, Areac] = INPUT
 
     # initial concentrations
-    tot_in_mol = N2in + H2in + NH3in
-    yN2 = N2in / tot_in_mol
-    yH2 = H2in / tot_in_mol
-    yNH3 = NH3in / tot_in_mol
-
-    mN2in = N2in * 28.0134/1000
-    mH2in = H2in * 2.016/1000
-    mNH3in = NH3in * 17.03/1000
-    mdot = mN2in + mH2in + mNH3in
-
-
+    T = s.T
+    P = s.p
 
     # activity coefficients for all species
-    N2fuga = 0.93431737 + 0.3101804*10**-3 * Tin + 0.295895*10**-3 * Pin - 0.270729*10**-6 * Tin**2 + \
-             0.4775207*10**-6 * Pin**2
-    H2fuga = math.exp(math.exp(-3.8402*Tin**0.125+0.541)*Pin - math.exp(-0.1263*Tin**0.5-15.980)*Pin**2 +
-                      300*math.exp(-0.011901*Tin-5.941)*(math.exp(-Pin/300)-1))
-    NH3fuga = 0.1438996 + 0.2028538*10**-2*Tin - 0.4487672*10**-3*Pin - 0.1142945*10**-5*Tin**2 + \
-              0.2761216*10**-6*Pin**2
-    a_N2 = yN2 * N2fuga * Pin #bar
-    a_H2 = yH2 * H2fuga * Pin #bar
-    a_NH3 = yNH3 * NH3fuga * Pin #bar
+    N2fuga = 0.93431737 + 0.3101804 * 10 ** -3 * T + 0.295895 * 10 ** -3 * P - 0.270729 * 10 ** -6 * T ** 2 + \
+             0.4775207 * 10 ** -6 * P ** 2
+    H2fuga = math.exp(math.exp(-3.8402 * T ** 0.125 + 0.541) * P - math.exp(-0.1263 * T ** 0.5 - 15.980) * P ** 2 +
+                      300 * math.exp(-0.011901 * T - 5.941) * (math.exp(-P / 300) - 1))
+    NH3fuga = 0.1438996 + 0.2028538 * 10 ** -2 * T - 0.4487672 * 10 ** -3 * P - 0.1142945 * 10 ** -5 * T ** 2 + \
+              0.2761216 * 10 ** -6 * P ** 2
+    a_N2 = s.yN2 * N2fuga * P  # bar
+    a_H2 = s.yH2 * H2fuga * P  # bar
+    a_NH3 = s.yNH3 * NH3fuga * P  # bar
 
     # reaction rate constant
-    Ea = 1.7056*10**5 #J/mol
-    R = 8.31446261815324 #J/K/mol
-    k0 = 8.8490*10**17 #mol/m^3
-    k_r = k0*math.exp(-Ea/(R*Tin)) #mol/m^3/h
+    Ea = 1.7056 * 10 ** 5  # J/mol
+    R = 8.31446261815324  # J/K/mol
+    k0 = 8.8490 * 10 ** 17  # mol/m^3
+    k_r = k0 * math.exp(-Ea / (R * T))  # mol/m^3/h
 
     # equilibrium constant
-    K_eq = math.pow(10,-2.691122*math.log(Tin,10) - 5.519265*10**-5*Tin + 1.848863*10**-7*Tin**2 + 2001.6/Tin + 2.67899)
+    K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
+                    + 2001.6 / T + 2.67899)
 
     # Reaction Rate
     alpha = 0.5
-    RR_NH3 = k_r*(K_eq**2*a_N2*(a_H2**3/(a_NH3**2))**alpha - (a_NH3**2/(a_H2**3))**(1-alpha))/3600
-    RR_N2 = -1/2*RR_NH3
-    RR_H2 = -3/2*RR_NH3
-
-    # Cp
-    N2 = pm.get('ig.N2')
-    H2 = pm.get('ig.H2')
-    NH3 = pm.get('ig.NH3')
-    m_Cp_tot = float(mN2in*N2.cp(Tin,Pin) + mH2in*H2.cp(Tin,Pin) + mNH3in*NH3.cp(Tin,Pin)) # J/kg/K
+    RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
+                    - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
+    RR_N2 = -1 / 2 * RR_NH3
+    RR_H2 = -3 / 2 * RR_NH3
 
     # Heat of Reaction
-    Del_H = 4.184*(-(0.54526 + 846.609/Tin + 459.734*10**6*Tin**-3)*Pin - 5.34685*Tin -0.2525*10**-3*Tin**2 + 1.69197*10**-6*Tin**3 -9157.09) #J/mol
+    Del_H = 4.184 * (-(0.54526 + 846.609 / T + 459.734 * 10 ** 6 * T ** -3) * P - 5.34685 * T
+                     - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
+
+    # change in molars
+    s.N2 += dX * RR_N2 * area
+    s.H2 += dX * RR_H2 * area
+    s.NH3 += dX * RR_NH3 * area
+
+    # change in temp
+    s.T += -dX * area * Del_H * RR_NH3 / (s.cp * s.mass_tot)
+
+    # update state
+    s.update()
+    return s
 
 
-    # production
-    N2out = N2in + DelX * RR_N2 * Areac  #### check these - conversion percentages are not moles ------- need to fix
-    H2out = H2in + DelX * RR_H2 * Areac
-    NH3out = NH3in + DelX * RR_NH3 * Areac
+def mixer(s1, s2):
 
-    Tout = Tin - DelX * Areac * Del_H * RR_NH3 / (m_Cp_tot)
-
-    #print((2*N2out+NH3out),(2*N2in+NH3in))
-    #print((2*H2out + 3*NH3out), (2*H2in+3*NH3in))
-    OUTPUT = [H2out, N2out, NH3out, Tout, Pin]
-    return OUTPUT
-
-def mixer(INPUT1,INPUT2):
-    [H2in1, N2in1, NH3in1, Tin1, Pin1] = INPUT1
-    [H2in2, N2in2, NH3in2, Tin2, Pin2] = INPUT2
-
-    mN2in1 = N2in1 * 28.0134 / 1000
-    mH2in1 = H2in1 * 2.016 / 1000
-    mNH3in1 = NH3in1 * 17.03 / 1000
-    mtot1 = mN2in1 + mH2in1+mNH3in1
-
-    mN2in2 = N2in2 * 28.0134 / 1000
-    mH2in2 = H2in2 * 2.016 / 1000
-    mNH3in2 = NH3in2 * 17.03 / 1000
-    mtot2 = mN2in2 + mH2in2 + mNH3in2
+    # Tav = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) \
+    #       / (((s1.cp + s2.cp) / 2) * (s1.mass_tot + s2.mass_tot))
+    Tav = (s1.T*s1.mass_tot + s2.T*s2.mass_tot)/(s1.mass_tot + s2.mass_tot)
 
 
-    N2 = pm.get('ig.N2')
-    H2 = pm.get('ig.H2')
-    NH3 = pm.get('ig.NH3')
+    s_out = State(s1.H2 + s2.H2, s1.N2 + s2.N2, s1.NH3 + s2.NH3, Tav, min(s1.p, s2.p))
 
-    Pout = min(Pin1,Pin2)
-    Tav = (Tin1*mtot1 + Tin2*mtot2)/((mtot1 + mtot2))
+    s_out.T = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) / (s_out.cp * s_out.mass_tot)
 
-    Qin1 = (mN2in1*N2.cp(Tin1, Pin1) + mH2in1*H2.cp(Tin1, Pin1) + mNH3in1*NH3.cp(Tin1, Pin1)) * Tin1
+    s_out.update()
+    return s_out
 
-    Qin2 = (mN2in2*N2.cp(Tin2, Pin2) + mH2in2*H2.cp(Tin2, Pin2) + mNH3in2*NH3.cp(Tin2, Pin2)) * Tin2
 
-    QoutperT = ((mN2in1 + mN2in2)*N2.cp(Tav, Pout) + mH2in1*H2.cp(Tav, Pout) + mNH3in1*NH3.cp(Tav, Pout) + mN2in2*N2.cp(Tav, Pout) + mH2in2*H2.cp(Tav, Pout) + mNH3in2*NH3.cp(Tav, Pout))
-
-    Tout = float((Qin1 + Qin2)/QoutperT)
-
-    OUTPUT = [H2in1 + H2in2,N2in1 + N2in2,NH3in1 + NH3in2,Tout,Pout]
-    return OUTPUT
-
-def compressor(INPUT, Pout, eta=0.7):
+def compressor(s, p_out, eta=0.7):
     """
     Function to return rate of work for a compressor based on a
     target pressure.
@@ -358,96 +279,45 @@ def compressor(INPUT, Pout, eta=0.7):
     Outputs: OUTPUT - 5x1 list of [float], standard output of mol H2, mol N2, mol NH3, T[K] and p[bar]
              w - float, output
     """
-    [H2in, N2in, NH3in, Tin, Pin] = INPUT
-    tot_in_mol = N2in + H2in + NH3in
-    yN2 = N2in / tot_in_mol
-    yH2 = H2in / tot_in_mol
-    yNH3 = NH3in / tot_in_mol
+    s.update_special()
+    s_out = copy.deepcopy(s)
 
-    mN2in = N2in * 28.0134/1000
-    mH2in = H2in * 2.016/1000
-    mNH3in = NH3in * 17.03/1000
-    m_mix = mN2in + mH2in + mNH3in
-
-    N2data = pm.get('ig.N2')
-    H2data = pm.get('ig.H2')
-    NH3data = pm.get('ig.NH3')
+    y = s_out.gamma
+    r_p = p_out / s_out.p
+    a = (y - 1) / y
+    power = s_out.cp * s_out.T / eta * (r_p ** a - 1)
+    s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
+    s_out.p = p_out
+    s_out.update()
+    return s, power
 
 
-    C_mix = float(mN2in * N2data.cp(Tin, Pin) + mH2in * H2data.cp(Tin, Pin) + mNH3in * NH3data.cp(Tin, Pin)) # J/kg/K
-
-    y = float(1 + 1/((yN2/0.4) + (yH2/0.4) + yNH3/(NH3data.gam(Tin,Pin)-1)))
-    r_p = Pout/Pin
-    a = (y-1)/y
-    w = C_mix*Tin/eta*(r_p**a-1)
-    Tout = Tin*(1+r_p**a/eta-1/eta)
-    OUTPUT = [H2in, N2in, NH3in, Tout, Pout]
-    return OUTPUT, w
-
-def compressor_power(INPUT, Pout, eta=0.7):
-    """
-    Function to return rate of work for a compressor based on a
-    target pressure.
-
-    Inputs: INPUT - 5x1 list of [float], standard input of mol H2, mol N2, mol NH3, T[K] and p[bar]
-            Pout - float, target pressure
-            eta - float, efficiency of compressor
-
-    Outputs: w - float, work rate required (W)
-    """
-    [H2in, N2in, NH3in, Tin, Pin] = INPUT
-    tot_in_mol = N2in + H2in + NH3in
-    yN2 = N2in / tot_in_mol
-    yH2 = H2in / tot_in_mol
-    yNH3 = NH3in / tot_in_mol
-
-    mN2in = N2in * 28.0134/1000
-    mH2in = H2in * 2.016/1000
-    mNH3in = NH3in * 17.03/1000
-    m_mix = mN2in + mH2in + mNH3in
-
-    N2data = pm.get('ig.N2')
-    H2data = pm.get('ig.H2')
-    NH3data = pm.get('ig.NH3')
-
-
-    C_mix = float(mN2in * N2data.cp(Tin, Pin) + mH2in * H2data.cp(Tin, Pin) + mNH3in * NH3data.cp(Tin, Pin)) # J/kg/K
-
-    y = float(1 + 1/((yN2/0.4) + (yH2/0.4) + yNH3/(NH3data.gam(Tin,Pin)-1)))
-    r_p = Pout/Pin
-    a = (y-1)/y
-    W = C_mix*Tin/eta*(r_p**a-1)
-    Tout = Tin*(1+r_p**a/eta-1/eta)
-    return W
-
-def PSA_estimate(INPUT, Pout=10, eta=0.7):
+def psa_estimate(N2_mol, p_out=10, eta=0.7):
     """
     Function to return power for PSA to separate given mol of N2.
 
-    Inputs:     INPUT - 3x1 list of [float],mol N2, T[K] and p[bar]
+    Inputs:     N2_mol - mol flow rate of N2
                 Pout - float, target pressure
                 eta - float, efficiency of compressor
 
     Outputs:    OUTPUT - 5x1 list of [float], standard output of mol H2, mol N2, mol NH3, T[K] and p[bar]
                 w - float, work rate required (W) for PSA
     """
-    [N2in, Tin, Pin] = INPUT
-    mN2in = N2in * 28.0134/1000
+    [N2in, Tin, Pin] = [N2_mol,298,1]
+    mN2in = N2in * 28.0134 / 1000
 
-    N2data = pm.get('ig.N2')
-
-    C_mix = float(mN2in * N2data.cp(Tin, Pin))/0.79 # J/kg/K
+    c_mix = float(mN2in * pm.get('ig.N2').cp(Tin, Pin)) / 0.79  # J/kg/K
 
     y = 1.4
-    r_p = Pout/Pin
-    a = (y-1)/y
-    W = C_mix*Tin/eta*(r_p**a-1)
-    Tout = Tin*(1+r_p**a/eta-1/eta)
-    output_state = State(0, N2in, 0, Tout, Pout)
-    return output_state, W
+    r_p = p_out / Pin
+    a = (y - 1) / y
+    power = c_mix * Tin / eta * (r_p ** a - 1)
+    Tout = Tin * (1 + r_p ** a / eta - 1 / eta)
+    s_out = State(0, N2in, 0, Tout, p_out)
+    return s_out, power
 
 
-def electrolysis(H2mol,eta = 0.7): #mol/s to kW
+def electrolysis(H2mol, eta=0.7):  # mol/s to W
     """
         Function to return power for PEM electrolysis to separate given mol of H2.
 
@@ -457,36 +327,39 @@ def electrolysis(H2mol,eta = 0.7): #mol/s to kW
                     w - float, work rate required (W) for PSA
                     H20_in - required water to produce hydrogen
         """
-    W = 241.83 / eta * H2mol
-    OUTPUT = [H2mol, 0, 0, 298, 1]
-    H20_in = H2mol*18/2
-    return OUTPUT, W,  H20_in
+    W = 241.83 / eta * H2mol * 1000
+    s_out = State(H2mol, 0, 0, 298, 1)
+    H20_in = H2mol * 18.015 / 2.016
+    return s_out, W, H20_in
 
-def heater(State,T_end):
-    power = State.cp*State.mass_tot*(T_end - State.T)
-    State.T = T_end
-    return State,power
+
+def heater(state, T_end):
+    power = state.cp * state.mass_tot * (T_end - state.T)
+    state.T = T_end
+    state.update()
+    return state, power
+
 
 class Bed(object):
     '''
     A class to store properties of a 1D Bed model for a reactor.
     also generates a vector to describe end
     '''
-
-    def __init__(self, length, diam, mini, newvectmethod = True):
+    def __init__(self, length, diam, mini, newvectmethod=True):
         self.length = length
         self.diam = diam
-        self.area = math.pi * (diam / 2) ** 2 # m^2
+        self.area = math.pi * (diam / 2) ** 2  # m^2
         # generate vect
         if not newvectmethod:
-            self.vect = [0] + np.geomspace(mini, length / 10, 19, endpoint=False).tolist() + np.linspace(length / 10, length, 10).tolist()
+            self.vect = [0] + np.geomspace(mini, length / 10, 19, endpoint=False).tolist() + \
+                        np.linspace(length / 10, length, 10).tolist()
         else:
             maxi = 0
-            scale_max = np.floor(np.log10(mini))+1
+            scale_max = np.floor(np.log10(mini)) + 1
             scaler = 0
             OUTPUT = [0]
             while maxi < self.length:
-                maxi = maxi + mini*10**scaler
+                maxi = maxi + mini * 10 ** scaler
                 OUTPUT.append(maxi)
                 if np.log10(maxi) + 0.001 >= scale_max:
                     scaler += 1
@@ -495,44 +368,64 @@ class Bed(object):
 
         self.vectlen = len(self.vect)
 
+
 class State(object):
     '''
     Class to store variables about mass and molar flow rate, temperature, pressure etc of data.
-    Species: molar flow rate [mol/s]
-    ySpecies: molar concentration [mol/mol]
-    mSpecies: mass flow rate [kg/s
+
     :param H2: molar flow rate [mol/s] of H2 gas.
     :param N2: molar flow rate [mol/s] of N2 gas.
     :param NH3: molar flow rate [mol/s] of NH3 gas.
     :param T: Temperature of flow [K].
     :param P: Pressure of flow [bar].
     '''
-    def __init__(self,H2,N2,NH3,T,P):
+
+    def __init__(self, H2, N2, NH3, T, p):
         self.H2 = H2
         self.N2 = N2
         self.NH3 = NH3
         self.T = T
-        self.P = P
-        self.update()
-
+        self.p = p
+        self.update_special()
 
     def update(self):
+        # masses of components in [kg]
         self.mH2 = self.H2 * 2.016 / 1000
         self.mN2 = self.N2 * 28.0134 / 1000
         self.mNH3 = self.NH3 * 17.03 / 1000
+        self.mass_tot = self.mH2 + self.mN2 + self.mNH3
+
+        # total mol
         self.mol_tot = self.H2 + self.N2 + self.NH3
-        self.mass_tot = self.H2 * 2.016 + self.N2 * 28.0134 + self.NH3 * 17.03
+        # mol
         self.yH2 = self.H2 / self.mol_tot
         self.yN2 = self.N2 / self.mol_tot
         self.yNH3 = self.NH3 / self.mol_tot
 
-        self.cp = float((pm.get('ig.N2').cp(self.T, self.P) * self.mN2 + pm.get('ig.H2').cp(self.T, self.P) * self.mH2 +
-                   pm.get('ig.NH3').cp(self.T, self.P) * self.mNH3) / self.mass_tot)
+        # cp [J/kg/K]
+        self.cp = float((pm.get('ig.N2').cp(self.T, self.p) * self.mN2 + pm.get('ig.H2').cp(self.T, self.p) * self.mH2 +
+                         pm.get('ig.NH3').cp(self.T, self.p) * self.mNH3) / self.mass_tot)
 
-        self.rho = float(pm.get('ig.N2').d(self.T, self.P) * self.yN2 + pm.get('ig.H2').d(self.T, self.P) * self.yH2 + \
-                   pm.get('ig.NH3').d(self.T, self.P) * self.yNH3)
+    def update_special(self):
+        self.update()
+        # rho [kg/m^3]
+        self.rho = float(pm.get('ig.N2').d(self.T, self.p) * self.yN2 + pm.get('ig.H2').d(self.T, self.p) * self.yH2 + \
+                         pm.get('ig.NH3').d(self.T, self.p) * self.yNH3)
 
+        # gamma from addition of specific heats(1+ 1/sum of mol%/gamma)[-]
+        self.gamma = float((1 + 1 / ((self.yN2 / 0.4) + (self.yH2 / 0.4) + self.yNH3 / (pm.get('ig.NH3').gam(self.T, self.p) - 1))))
+
+        # mu from sutherland's formula [Ns/m^2]
         mu_N2 = 1.663 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 107) / (self.T + 107)
         mu_H2 = 8.411 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 97) / (self.T + 97)
         mu_NH3 = 0.919 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 370) / (self.T + 370)
         self.mu = self.yN2 * mu_N2 + self.yH2 * mu_H2 + self.yNH3 * mu_NH3
+
+    def store(self):
+        return [self.H2, self.N2, self.NH3, self.T, self.p]
+
+    def split(self,f):
+        s1 = State(self.H2 * f, self.N2 * f, self.NH3 * f, self.T, self.p)
+        s2 = State(self.H2 * (1 - f), self.N2 * (1 - f), self.NH3 * (1 - f), self.T, self.p)
+        return s1, s2
+
