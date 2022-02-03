@@ -154,7 +154,7 @@ def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+27
     return s_out, Q
 
 
-def condensor(s, e2=0.8, Vmax=5, D=0.006):  ### check units!!
+def condensor(s, e2=0.8, water_mass_flow=1, Vmax=5, D=0.006):  ### check units!!
 
     s.update_special()
     s_out = copy.deepcopy(s)
@@ -163,7 +163,7 @@ def condensor(s, e2=0.8, Vmax=5, D=0.006):  ### check units!!
 
     C_mix = s_out.cp * s_out.mass_tot
 
-    C_cool = 0.1 * 4180  # 1 kg/s * 4180 J/kg/K
+    C_cool = water_mass_flow * 4180  # 1 kg/s * 4180 J/kg/K
 
     Cmin = min(C_cool, C_mix)
     Cmax = max(C_cool, C_mix)
@@ -285,11 +285,11 @@ def compressor(s, p_out, eta=0.7):
     y = s_out.gamma
     r_p = p_out / s_out.p
     a = (y - 1) / y
-    power = s_out.cp * s_out.T / eta * (r_p ** a - 1)
+    power = s_out.cp * s_out.mass_tot*s_out.T / eta * (r_p ** a - 1)
     s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
     s_out.update()
-    return s, power
+    return s_out, power
 
 
 def psa_estimate(N2_mol, p_out=10, eta=0.7):
@@ -306,7 +306,7 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     [N2in, Tin, Pin] = [N2_mol,298,1]
     mN2in = N2in * 28.0134 / 1000
 
-    c_mix = float(mN2in * pm.get('ig.N2').cp(Tin, Pin)) / 0.79  # J/kg/K
+    c_mix = float(mN2in * pm.get('ig.N2').cp(Tin, Pin)) / 0.7552 # J/kg/K
 
     y = 1.4
     r_p = p_out / Pin
