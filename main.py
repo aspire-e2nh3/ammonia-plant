@@ -7,14 +7,14 @@ import copy
 import pyromat as pm
 
 # initial inputs - define bed structure, quench ratio
-bed1 = Bed(2, 0.05, 0.001, False)
+bed1 = Bed(2.0, 0.05, 0.001, False)
 '''
 quench_ratio = 0.6 # amount into first bed/total amount
 bed2 = Bed(3, 0.05, 0.001, False)
 '''
 
 # criterion for stopping heat exchanger integration
-Criterion = 0.01
+Criterion = 0.001
 
 # set reactor inlet temp
 reactor_in_temp = 663
@@ -58,7 +58,7 @@ print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
 
 [Pipe_IN_cooled,power_consumption["inflow cooling"]] = heat_exchanger_water2gas(Pipe_IN, 10, inlet_temp)
 
-Pipe_recycle = State(recycle_estimate*total_mol_H2,recycle_estimate*total_mol_N2, 0.5*total_mol_N2, inlet_temp, Reactor_Pressure-2)
+Pipe_RE = State(recycle_estimate*total_mol_H2,recycle_estimate*total_mol_N2, 0.5*total_mol_N2, inlet_temp, Reactor_Pressure-2)
 
 
 
@@ -70,8 +70,8 @@ while (stop == 0):
     print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
     # Mix recycle stream in
     print('New Feed (cooled) = %3.1f' % Pipe_IN_cooled.T, 'K\n')
-    print('Recycle = %3.1f' % Pipe_recycle.T, 'K\n')
-    Pipe_1a = mixer(Pipe_IN_cooled, Pipe_recycle)
+    print('Recycle = %3.1f' % Pipe_RE.T, 'K\n')
+    Pipe_1a = mixer(Pipe_IN_cooled, Pipe_RE)
     print('Mixed with Recycle = %3.1f' % Pipe_1a.T, 'K\n')
 
     # recompress recycled stream
@@ -168,19 +168,19 @@ while (stop == 0):
     print('Double cooled chiller outlet T = %3.1f' % Pipe_2c.T)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    [Pipe_recycle, power_consumption["Condensor"]] = condensor(Pipe_2c, e2=0.8, water_mass_flow=10)
-    print('Recycle stream composition = ', Pipe_recycle.store())
+    [Pipe_RE, power_consumption["Condensor"]] = condensor(Pipe_2c, e2=0.8, water_mass_flow=10)
+    print('Recycle stream composition = ', Pipe_RE.store())
 
     if HTHE_DelT_resid < Criterion:
         stop = 1
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # reheat recycle stream? loosing too much energy rn
-print('Ammonia produced = %2.2f kg/h' % float((Pipe_2c.mNH3-Pipe_recycle.mNH3)*3600))
+print('Ammonia produced = %2.4f g/s' % float((Pipe_2c.mNH3-Pipe_RE.mNH3)*1e3))
 
 
-recycle_ratio_mol = (Pipe_recycle.mol_tot / Pipe_IN.mol_tot)
-recycle_ratio_mass = (Pipe_recycle.mass_tot / Pipe_IN.mass_tot)
+recycle_ratio_mol = (Pipe_RE.mol_tot / Pipe_IN.mol_tot)
+recycle_ratio_mass = (Pipe_RE.mass_tot / Pipe_IN.mass_tot)
 print('recycle ratio mass = %2.3f' % recycle_ratio_mass, ', recycle ratio mol = %2.3f' % recycle_ratio_mol)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -195,7 +195,7 @@ print(Pipe_1c.store())
 print(Pipe_2a.store())
 print(Pipe_2b.store())
 print(Pipe_2c.store())
-print(Pipe_recycle.store())
+print(Pipe_RE.store())
 plot = 1
 if plot:
     x_plot_data = bed1.vect
