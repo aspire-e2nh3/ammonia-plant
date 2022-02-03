@@ -8,19 +8,17 @@ import pyromat as pm
 
 # initial inputs
 
-bed1 = Bed(1, 0.05, 0.001, False)
-quench_ratio = 0.75 # amount into first bed/total amount
+bed1 = Bed(0.8, 0.05, 0.001, False)
+quench_ratio = 0.6 # amount into first bed/total amount
 bed2 = Bed(3, 0.05, 0.001, False)
 
-bed3bool = 0
-q2fact = 1
-bed3 = Bed(7, 0.1, 0.001, False)
+
 
 Criterion = 0.1
 
 
 
-total_mol_N2 = 0.15  # mol
+total_mol_N2 = 0.12  # mol
 total_mol_H2 = total_mol_N2 * 3 # mol
 
 
@@ -47,12 +45,12 @@ Pipe_IN = mixer(Pipe_H2_HP,Pipe_N2_HP)
 
 print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
 
-[Pipe_IN_cooled,power_consumption["inflow cooling"]] = heat_exchanger_water2gas(Pipe_IN, 1, 298)
+[Pipe_IN_cooled,power_consumption["inflow cooling"]] = heat_exchanger_water2gas(Pipe_IN, 10, 298)
 
-Pipe_recycle = State(4*total_mol_H2,4*total_mol_N2, 0.05*total_mol_N2, 298, Reactor_Pressure-1)
+Pipe_recycle = State(4.16*total_mol_H2,4.18*total_mol_N2, 0.2*total_mol_N2, 298, Reactor_Pressure-1)
 
-HTHE_DelT = 200  #
-LTHE_DelT = 150
+HTHE_DelT = 100  #
+LTHE_DelT = 200
 HTHE_DelT_resid = 50
 
 
@@ -76,7 +74,8 @@ while (stop == 0):
     Pipe_1c = copy.deepcopy(Pipe_1b)
     Pipe_1c.T += LTHE_DelT
     print('Reheated stream = %3.1f' % Pipe_1c.T, 'K\n')
-
+    Pipe_1c.T = 573
+    print('Double Reheated stream set to 573K.')
     # split pipe for quench stream:
     [Pipe_2a, Pipe_3] = Pipe_1c.split(quench_ratio)
 
@@ -84,6 +83,8 @@ while (stop == 0):
     Pipe_2b = copy.deepcopy(Pipe_2a)
     Pipe_2b.T += HTHE_DelT
     print('Double Reheated stream = %3.1f' % Pipe_2b.T, 'K\n')
+    Pipe_2b.T = 673
+    print('Double Reheated stream set to 673K.')
     # Initialise bed data
     Bed_data = []
     Bed_iterator = copy.deepcopy(Pipe_2b)
@@ -129,7 +130,12 @@ while (stop == 0):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
     print('Immediately post reactor = %3.1f' % Pipe_4a.T, 'K\n')
-    [Pipe_4b, Pipe_2b_fake, HTHE_DelT_new] = heat_exchanger_hotgas2coldgas(Pipe_4a, Pipe_2a)
+    #[Pipe_4b, Pipe_2b_fake, HTHE_DelT_new] = heat_exchanger_hotgas2coldgas(Pipe_4a, Pipe_2a)
+    Pipe_4b = copy.deepcopy(Pipe_4a)
+    Pipe_2b_fake = copy.deepcopy(Pipe_2a)
+    HTHE_DelT_new = max(673 - Pipe_2b_fake.T,0)
+    Pipe_4b.T += - HTHE_DelT_new*Pipe_2b_fake.cp*Pipe_2b_fake.mass_tot/(Pipe_4b.mass_tot * Pipe_4b.cp)
+    Pipe_2b_fake.T = 673
     HTHE_DelT_resid = abs(HTHE_DelT - HTHE_DelT_new)
     print('Single cooled post reactor = %3.1f' % Pipe_4b.T,
           'K\n Post HE Inlet into Reactor = %3.1f' % Pipe_2b_fake.T,
@@ -137,7 +143,12 @@ while (stop == 0):
     HTHE_DelT = HTHE_DelT_new
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (Pipe 7 to inlet) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    [Pipe_4c, Pipe_1c_fake, LTHE_DelT_new] = heat_exchanger_hotgas2coldgas(Pipe_4b, Pipe_1b)
+    #[Pipe_4c, Pipe_1c_fake, LTHE_DelT_new] = heat_exchanger_hotgas2coldgas(Pipe_4b, Pipe_1b)
+    Pipe_4c = copy.deepcopy(Pipe_4a)
+    Pipe_1c_fake = copy.deepcopy(Pipe_1b)
+    LTHE_DelT_new = max(573 - Pipe_1c_fake.T,0)
+    Pipe_4c.T += - HTHE_DelT_new*Pipe_1c_fake.cp*Pipe_1c_fake.mass_tot/(Pipe_4c.mass_tot * Pipe_4c.cp)
+    Pipe_1c_fake.T = 573
     LTHE_DelT_resid = abs(LTHE_DelT - LTHE_DelT_new)
     print('Double cooled post reactor = %3.1f' % Pipe_4c.T,
           'K\nPost HE quench stream = %3.1f' % Pipe_1c.T,
@@ -147,11 +158,11 @@ while (stop == 0):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    [Pipe_4d,power_consumption["Chiller"]] = heat_exchanger_water2gas(Pipe_4c, 1)
+    [Pipe_4d,power_consumption["Chiller"]] = heat_exchanger_water2gas(Pipe_4c, 10)
     print('Triple cooled chiller outlet T = %3.1f' % Pipe_4d.T)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    [Pipe_recycle, power_consumption["Condensor"]] = condensor(Pipe_4d, 0.8)
+    [Pipe_recycle, power_consumption["Condensor"]] = condensor(Pipe_4d, e2=0.9, water_mass_flow=10)
     print('recycle stream composition = ', Pipe_recycle.store())
 
 
@@ -175,9 +186,7 @@ Bed_data_T = np.array(Bed_data).T.tolist()
 plot = 1
 if plot:
     x_plot_data = bed1.vect + [bed1.length + x for x in bed2.vect]
-    if bed3bool:
-        x_plot_data.append([bed1.length + bed2.length + x for x in bed3.vect])
-    # y_plot_data = [x/(2*total_mol_N2) * 100 for x in Bed_data_T[2]]
+
     y_plot_data = Bed_data_T[3]
 
     sns.set(style='whitegrid')
