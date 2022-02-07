@@ -39,7 +39,7 @@ power_consumption = {}
 
 
 # make n2 and h2 input lines from psa and electrolysis functions
-[Pipe_N2_LP, power_consumption["PSA"]] = psa_estimate(total_mol_N2) #              MAYBE ADD AIR IN?
+[Pipe_N2_LP, power_consumption["PSA"]] = psa_estimate(total_mol_N2)                    # MAYBE ADD AIR_IN?
 [Pipe_H2_LP, power_consumption["electrolysis"],Water_in] = electrolysis(total_mol_H2)
 
 print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
@@ -106,61 +106,18 @@ while (stop == 0):
 
     print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], Bed_iterator.NH3/(2*Pipe_1c.N2)*100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
 
-
-    '''
-    # ~~~~~~~~~~~~~~~~~~~~~~~~ QUENCH 1-2 ~~~~~~~~~~~~~~~~~~~~~~~~~
-    # quench pipe by mixing with unused unheated stream Pipe_5
-    Bed_iterator = mixer(Bed_iterator, Pipe_3)
-    Bed_data.append(Bed_iterator.store())
-    print('Midbed post-quench T = %3.1f' % Bed_iterator.T + 'K')
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    for X in range(bed2.vectlen - 1):
-        # setup new step
-        dX = bed1.vect[X + 1] - bed1.vect[X]
-
-        # run reactor step
-        Bed_iterator = reactorStep(Bed_iterator, dX, bed1.area)
-
-        # store data
-        Bed_data.append(Bed_iterator.store())
-
-    print('Bed 2 length = %2.1fm, conversion = %2.2f' % (bed2.vect[-1], Bed_iterator.NH3 / (2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
-    print('Ammonia produced = %2.2f kg/h' % (Bed_iterator.NH3 * 3600 * 17.03 / 1000))
-    '''
     Pipe_2a = copy.deepcopy(Bed_iterator)
     Pipe_2a.p -= 2
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
     print('Immediately post reactor = %3.1f' % Pipe_2a.T, 'K')
     [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new] = heat_exchanger_parallel(Pipe_2a, Pipe_1b,T2out=reactor_in_temp)
-    '''
-    Pipe_2b = copy.deepcopy(Pipe_2a)
-    Pipe_1c_fake = copy.deepcopy(Pipe_1b)
-    HTHE_DelT_new = max(673 - Pipe_1c_fake.T,0)
-    Pipe_2b.T += - HTHE_DelT_new*Pipe_1c_fake.cp*Pipe_1c_fake.mass_tot/(Pipe_2b.mass_tot * Pipe_2b.cp)
-    Pipe_1c_fake.T = 673
-    '''
 
     HTHE_DelT_resid = abs(HTHE_DelT - HTHE_DelT_new)
     print('Single cooled post reactor = %3.1f' % Pipe_2b.T,
           'K\n Post HE Inlet into Reactor = %3.1f' % Pipe_1c_fake.T,
           'K\n HTHE del T = %3.1f' % HTHE_DelT_new, ' Resid = %3.1f' % HTHE_DelT_resid)
     HTHE_DelT = HTHE_DelT_new
-    '''
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (Pipe 7 to inlet) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #[Pipe_4c, Pipe_1c_fake, LTHE_DelT_new] = heat_exchanger_hotgas2coldgas(Pipe_4b, Pipe_1b)
-    Pipe_4c = copy.deepcopy(Pipe_4a)
-    Pipe_1c_fake = copy.deepcopy(Pipe_1b)
-    LTHE_DelT_new = max(573 - Pipe_1c_fake.T,0)
-    Pipe_4c.T += - HTHE_DelT_new*Pipe_1c_fake.cp*Pipe_1c_fake.mass_tot/(Pipe_4c.mass_tot * Pipe_4c.cp)
-    Pipe_1c_fake.T = 573
-    LTHE_DelT_resid = abs(LTHE_DelT - LTHE_DelT_new)
-    print('Double cooled post reactor = %3.1f' % Pipe_4c.T,
-          'K\nPost HE quench stream = %3.1f' % Pipe_1c.T,
-          'K\n LTHE del T = %3.1f' % LTHE_DelT_new, ' Resid = %3.1f' % LTHE_DelT_resid)
-    LTHE_DelT = LTHE_DelT_new
-    '''
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

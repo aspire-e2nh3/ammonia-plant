@@ -321,6 +321,34 @@ def compressor(s, p_out, eta=0.7):
     s_out.update()
     return s_out, power
 
+def ptcompressor(s, p_out, t_out=0, eta=0.7):
+    """
+    Function to return rate of work for a compressor based on a
+    target pressure.
+
+    Inputs: INPUT - 5x1 list of [float], standard input of mol H2, mol N2, mol NH3, T[K] and p[bar]
+            eta - float, efficiency of compressor
+
+    Outputs: OUTPUT - 5x1 list of [float], standard output of mol H2, mol N2, mol NH3, T[K] and p[bar]
+             w - float, output
+    """
+    n = 1/(1-(math.log(t_out/s.T)/math.log(p_out/s.p)))
+    a = n/(n-1)
+    print('polytropic index = %1.3f' %n)
+
+
+    s.update_special()
+    s_out = copy.deepcopy(s)
+
+    y = s_out.gamma
+    R = (y-1)*s_out.cp
+    power = s_out.mass_tot*R*a*(t_out - s_out.T)
+    Q_out = s_out.mass_tot*R*a*(t_out - s_out.T) - s_out.mass_tot*s_out.cp*(t_out - s_out.T)
+    s_out.T = t_out
+    s_out.p = p_out
+    s_out.update()
+    return s_out, power, Q_out
+
 
 def psa_estimate(N2_mol, p_out=10, eta=0.7):
     """
@@ -358,7 +386,7 @@ def electrolysis(H2mol, eta=0.7):  # mol/s to W
                     H20_in - required water to produce hydrogen
         """
     W = 241.83 / eta * H2mol * 1000
-    s_out = State(H2mol, 0, 0, 298, 1)
+    s_out = State(H2mol, 0, 0, 298, 10)
     H20_in = H2mol * 18.015 / 2.016
     return s_out, W, H20_in
 
