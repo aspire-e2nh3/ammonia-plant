@@ -67,23 +67,19 @@ print(power_consumption)
 stop = 0
 while (stop == 0):
 
-    print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
     # Mix recycle stream in
-    print('New Feed (cooled) = %3.1f' % Pipe_IN_cooled.T, 'K\n')
-    print('Recycle = %3.1f' % Pipe_RE.T, 'K\n')
+
     Pipe_1a = mixer(Pipe_IN_cooled, Pipe_RE)
-    print('Mixed with Recycle = %3.1f' % Pipe_1a.T, 'K\n')
+
 
     # recompress recycled stream
     [Pipe_1b,power_consumption["recompressor"],_] = compressor(Pipe_1a, 200, 0.7)
-    print('Recompressed = %3.1f' % Pipe_1b.T, 'K\n')
+
 
     # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
     Pipe_1c = copy.deepcopy(Pipe_1b)
     Pipe_1c.T += HTHE_DelT
-    print('Reheated stream = %3.1f' % Pipe_1c.T, 'K\n')
-    #Pipe_1c.T = 673
-    #print('Reheated stream set to 673K.')
+
 
 
     # Initialise bed data
@@ -104,32 +100,65 @@ while (stop == 0):
         Bed_data.append(Bed_iterator.store())
 
 
-    print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], Bed_iterator.NH3/(2*Pipe_1c.N2)*100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
 
     Pipe_2a = copy.deepcopy(Bed_iterator)
     Pipe_2a.p -= 2
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    print('Immediately post reactor = %3.1f' % Pipe_2a.T, 'K')
-    [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new] = heat_exchanger_parallel(Pipe_2a, Pipe_1b,T2out=reactor_in_temp)
+
+    [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new] = heat_exchanger_counter(Pipe_2a, Pipe_1b, T2out=reactor_in_temp)
 
     HTHE_DelT_resid = abs(HTHE_DelT - HTHE_DelT_new)
-    print('Single cooled post reactor = %3.1f' % Pipe_2b.T,
-          'K\n Post HE Inlet into Reactor = %3.1f' % Pipe_1c_fake.T,
-          'K\n HTHE del T = %3.1f' % HTHE_DelT_new, ' Resid = %3.1f' % HTHE_DelT_resid)
+
     HTHE_DelT = HTHE_DelT_new
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     [Pipe_2c,power_consumption["Chiller"]] = heat_exchanger_water2gas(Pipe_2b, 10)
-    print('Double cooled chiller outlet T = %3.1f' % Pipe_2c.T)
+
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
     [Pipe_RE, power_consumption["Condensor"]] = condensor(Pipe_2c, e2=0.8, water_mass_flow=10)
-    print('Recycle stream composition = ', Pipe_RE.store())
+
 
     if HTHE_DelT_resid < Criterion:
         stop = 1
+
+
+print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
+# Mix recycle stream in
+print('New Feed (cooled) = %3.1f' % Pipe_IN_cooled.T, 'K\n')
+print('Recycle = %3.1f' % Pipe_RE.T, 'K\n')
+
+print('Mixed with Recycle = %3.1f' % Pipe_1a.T, 'K\n')
+
+# recompress recycled stream
+
+print('Recompressed = %3.1f' % Pipe_1b.T, 'K\n')
+
+# Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
+
+print('Reheated stream = %3.1f' % Pipe_1c.T, 'K\n')
+#print('Reheated stream set to 673K.')
+
+print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], Bed_iterator.NH3/(2*Pipe_1c.N2)*100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+print('Immediately post reactor = %3.1f' % Pipe_2a.T, 'K')
+
+print('Single cooled post reactor = %3.1f' % Pipe_2b.T,
+      'K\n Post HE Inlet into Reactor = %3.1f' % Pipe_1c_fake.T,
+      'K\n HTHE del T = %3.1f' % HTHE_DelT_new, ' Resid = %3.1f' % HTHE_DelT_resid)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+print('Double cooled chiller outlet T = %3.1f' % Pipe_2c.T)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+print('Recycle stream composition = ', Pipe_RE.store())
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # reheat recycle stream? loosing too much energy rn
@@ -153,7 +182,7 @@ print(Pipe_2a.store())
 print(Pipe_2b.store())
 print(Pipe_2c.store())
 print(Pipe_RE.store())
-plot = 1
+plot = 0
 if plot:
     x_plot_data = bed1.vect
 

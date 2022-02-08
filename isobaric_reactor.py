@@ -112,12 +112,12 @@ def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm
     return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
 
-def heat_exchanger_parallel(s1, s2, T2out=0, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
     Heat exchanger: e-NTU form.
     :param s1: state of hot stream input
     :param s2: state of cold stream input
-    :param e1: effectiveness
+    :param effectiveness: effectiveness
     :return:
     '''
     s1.update_special()
@@ -133,12 +133,12 @@ def heat_exchanger_parallel(s1, s2, T2out=0, e1=0.8):  # mol,mol,mol,K,bar,K,m/s
         e1 = (T2out - s2.T)/(s1.T - s2.T)
         s2_out.T = T2out
         s1_out.T = e1 * s2.T + (1 - e1) * s1.T
-        print('e1 = %3.3f' %e1)
+
     Q = s2.cp * s2.mass_tot * (s2.T - s2_out.T)
 
     s1_out.update()
     s2_out.update()
-    return s1_out, s2_out, -(s2.T - s2_out.T)
+    return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
 def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+273, Vmax=5,
