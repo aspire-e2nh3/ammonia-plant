@@ -284,7 +284,14 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
 
 
 def mixer(s1, s2):
+    '''
+    Function to mix together two pipe streams into one.
+    :param  s1: input state 1
+            s2: input state 2
+    :return s_out: output state, mixed, at lowest pressure
 
+
+    '''
     # Tav = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) \
     #       / (((s1.cp + s2.cp) / 2) * (s1.mass_tot + s2.mass_tot))
     Tav = (s1.T*s1.mass_tot + s2.T*s2.mass_tot)/(s1.mass_tot + s2.mass_tot)
@@ -298,7 +305,7 @@ def mixer(s1, s2):
     return s_out
 
 
-def compressor(s, p_out, eta=0.7):
+def compressor(s, p_out, t_out=0, eta=0.7):
     """
     Function to return rate of work for a compressor based on a
     target pressure.
@@ -319,12 +326,12 @@ def compressor(s, p_out, eta=0.7):
     s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
     s_out.update()
-    return s_out, power
+    return s_out, power, 0
 
 def ptcompressor(s, p_out, t_out=0, eta=0.7):
     """
-    Function to return rate of work for a compressor based on a
-    target pressure.
+    Function to return rate of work for a polytropic compressor based on a
+    target pressure and outlet temperature.
 
     Inputs: INPUT - 5x1 list of [float], standard input of mol H2, mol N2, mol NH3, T[K] and p[bar]
             eta - float, efficiency of compressor
@@ -363,15 +370,11 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     """
     [N2in, Tin, Pin] = [N2_mol,298,1]
     mN2in = N2in * 28.0134 / 1000
+    s_out = State(0, N2in, 0, Tin, Pin)
+    [s_out,power,_] = ptcompressor(s_out,10,373)
 
-    c_mix = float(mN2in * pm.get('ig.N2').cp(Tin, Pin)) / 0.7552 # J/kg/K
 
-    y = 1.4
-    r_p = p_out / Pin
-    a = (y - 1) / y
-    power = c_mix * Tin / eta * (r_p ** a - 1)
-    Tout = Tin * (1 + r_p ** a / eta - 1 / eta)
-    s_out = State(0, N2in, 0, Tout, p_out)
+
     return s_out, power
 
 

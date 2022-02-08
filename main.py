@@ -46,8 +46,8 @@ print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
 print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K\n')
 
 # compress N2 and H2 lines
-[Pipe_N2_HP, power_consumption["N2_comp"]] = compressor(Pipe_N2_LP, Reactor_Pressure)
-[Pipe_H2_HP, power_consumption["H2_comp"]] = compressor(Pipe_H2_LP, Reactor_Pressure)
+[Pipe_N2_HP, power_consumption["N2_comp"],heatlost1] = ptcompressor(Pipe_N2_LP, Reactor_Pressure, t_out=inlet_temp)
+[Pipe_H2_HP, power_consumption["H2_comp"],heatlost2] = ptcompressor(Pipe_H2_LP, Reactor_Pressure, t_out=inlet_temp)
 
 print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K\n')
 print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K\n')
@@ -75,7 +75,7 @@ while (stop == 0):
     print('Mixed with Recycle = %3.1f' % Pipe_1a.T, 'K\n')
 
     # recompress recycled stream
-    [Pipe_1b,power_consumption["recompressor"]] = compressor(Pipe_1a, 200, 0.7)
+    [Pipe_1b,power_consumption["recompressor"],_] = compressor(Pipe_1a, 200, 0.7)
     print('Recompressed = %3.1f' % Pipe_1b.T, 'K\n')
 
     # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
