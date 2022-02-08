@@ -112,12 +112,12 @@ def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm
     return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
 
-def heat_exchanger_parallel(s1, s2, T2out=0, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
     Heat exchanger: e-NTU form.
     :param s1: state of hot stream input
     :param s2: state of cold stream input
-    :param e1: effectiveness
+    :param effectiveness: effectiveness
     :return:
     '''
     s1.update_special()
@@ -133,12 +133,12 @@ def heat_exchanger_parallel(s1, s2, T2out=0, e1=0.8):  # mol,mol,mol,K,bar,K,m/s
         e1 = (T2out - s2.T)/(s1.T - s2.T)
         s2_out.T = T2out
         s1_out.T = e1 * s2.T + (1 - e1) * s1.T
-        print('e1 = %3.3f' %e1)
+
     Q = s2.cp * s2.mass_tot * (s2.T - s2_out.T)
 
     s1_out.update()
     s2_out.update()
-    return s1_out, s2_out, -(s2.T - s2_out.T)
+    return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
 def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+273, Vmax=5,
@@ -284,7 +284,14 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
 
 
 def mixer(s1, s2):
+    '''
+    Function to mix together two pipe streams into one.
+    :param  s1: input state 1
+            s2: input state 2
+    :return s_out: output state, mixed, at lowest pressure
 
+
+    '''
     # Tav = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) \
     #       / (((s1.cp + s2.cp) / 2) * (s1.mass_tot + s2.mass_tot))
     Tav = (s1.T*s1.mass_tot + s2.T*s2.mass_tot)/(s1.mass_tot + s2.mass_tot)
@@ -298,7 +305,7 @@ def mixer(s1, s2):
     return s_out
 
 
-def compressor(s, p_out, eta=0.7):
+def compressor(s, p_out, t_out=0, eta=0.7):
     """
     Function to return rate of work for a compressor based on a
     target pressure.
@@ -319,7 +326,35 @@ def compressor(s, p_out, eta=0.7):
     s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
     s_out.update()
-    return s_out, power
+    return s_out, power, 0
+
+def ptcompressor(s, p_out, t_out=0, eta=0.7):
+    """
+    Function to return rate of work for a polytropic compressor based on a
+    target pressure and outlet temperature.
+
+    Inputs: INPUT - 5x1 list of [float], standard input of mol H2, mol N2, mol NH3, T[K] and p[bar]
+            eta - float, efficiency of compressor
+
+    Outputs: OUTPUT - 5x1 list of [float], standard output of mol H2, mol N2, mol NH3, T[K] and p[bar]
+             w - float, output
+    """
+    n = 1/(1-(math.log(t_out/s.T)/math.log(p_out/s.p)))
+    a = n/(n-1)
+    print('polytropic index = %1.3f' %n)
+
+
+    s.update_special()
+    s_out = copy.deepcopy(s)
+
+    y = s_out.gamma
+    R = (y-1)*s_out.cp
+    power = s_out.mass_tot*R*a*(t_out - s_out.T)
+    Q_out = s_out.mass_tot*R*a*(t_out - s_out.T) - s_out.mass_tot*s_out.cp*(t_out - s_out.T)
+    s_out.T = t_out
+    s_out.p = p_out
+    s_out.update()
+    return s_out, power, Q_out
 
 
 def psa_estimate(N2_mol, p_out=10, eta=0.7):
@@ -335,15 +370,11 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     """
     [N2in, Tin, Pin] = [N2_mol,298,1]
     mN2in = N2in * 28.0134 / 1000
+    s_out = State(0, N2in, 0, Tin, Pin)
+    [s_out,power,_] = ptcompressor(s_out,10,373)
 
-    c_mix = float(mN2in * pm.get('ig.N2').cp(Tin, Pin)) / 0.7552 # J/kg/K
 
-    y = 1.4
-    r_p = p_out / Pin
-    a = (y - 1) / y
-    power = c_mix * Tin / eta * (r_p ** a - 1)
-    Tout = Tin * (1 + r_p ** a / eta - 1 / eta)
-    s_out = State(0, N2in, 0, Tout, p_out)
+
     return s_out, power
 
 
@@ -358,7 +389,7 @@ def electrolysis(H2mol, eta=0.7):  # mol/s to W
                     H20_in - required water to produce hydrogen
         """
     W = 241.83 / eta * H2mol * 1000
-    s_out = State(H2mol, 0, 0, 298, 1)
+    s_out = State(H2mol, 0, 0, 298, 10)
     H20_in = H2mol * 18.015 / 2.016
     return s_out, W, H20_in
 
