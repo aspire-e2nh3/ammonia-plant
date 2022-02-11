@@ -36,7 +36,8 @@ def sat_point_lookup(P_sat):
              3.7410320e+02, 3.7535757e+02, 3.7661614e+02, 3.7787893e+02, 3.7914596e+02, 3.8041723e+02, 3.8169277e+02,
              3.8297258e+02, 3.8425669e+02, 3.8554510e+02, 3.8683783e+02, 3.8813489e+02, 3.8943630e+02, 3.9074208e+02,
              3.9205224e+02, 3.9336678e+02, 3.9468574e+02, 3.9600912e+02, 3.9733693e+02, 3.9866920e+02, 4.0000594e+02,
-             4.0134715e+02, 4.0269287e+02, 4.0367440e+02], [1.0167000e-01, 1.0466000e-01, 1.0836000e-01, 1.1227000e-01, 1.1617000e-01, 1.2043000e-01, 1.2462000e-01,
+             4.0134715e+02, 4.0269287e+02, 4.0367440e+02],
+            [1.0167000e-01, 1.0466000e-01, 1.0836000e-01, 1.1227000e-01, 1.1617000e-01, 1.2043000e-01, 1.2462000e-01,
              1.2919000e-01, 1.3359000e-01, 1.3858000e-01, 1.4340000e-01, 1.4857000e-01, 1.5372000e-01, 1.5927000e-01,
              1.6490000e-01, 1.7085000e-01, 1.7689000e-01, 1.8315000e-01, 1.8975000e-01, 1.9634000e-01, 2.0355000e-01,
              2.1048000e-01, 2.1835000e-01, 2.2578000e-01, 2.3423000e-01, 2.4220000e-01, 2.5109000e-01, 2.5981000e-01,
@@ -62,7 +63,7 @@ def sat_point_lookup(P_sat):
     return float(np.interp(P_sat, [10 * x for x in data[1]], data[0]))
 
 
-def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
     Heat exchanger: e-NTU form.
     :param s1_out: state of hot stream input
@@ -73,8 +74,8 @@ def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm
     s1.update_special()
     s2.update_special()
 
-    s1_out = copy.deepcopy(s1)
-    s2_out = copy.deepcopy(s2)
+    s1_out = copy.copy(s1)
+    s2_out = copy.copy(s2)
 
     Cmin = min(s1_out.cp * s1_out.mass_tot, s2_out.cp * s2_out.mass_tot)
     # Cmax = max(s1.cp*s1.mass_tot, s2.cp*s2.mass_tot)
@@ -85,27 +86,6 @@ def heat_exchanger_hotgas2coldgas(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm
     s1_out.T += - Q / (s1_out.cp * s1_out.mass_tot)
     s2_out.T += Q / (s2_out.cp * s2_out.mass_tot)
 
-    # NTU = np.log(1-e1*(1+Cr))/(1+Cr)
-    #
-    # U1 = 300 # W/m^2/K
-    #
-    # A1 = NTU * Cmin / U1
-    #
-    # rho_mix = yN2 * N2data.d(T_hot_in, Pin) + yH2 * H2data.d(T_hot_in, Pin) + yNH3 * NH3data.d(T_hot_in, Pin)
-    #
-    # Q_flow = m_mix / rho_mix
-    # num_p = 4 * Q_flow / (Vmax * np.pi * D ** 2)
-    # l1 = A1 / (num_p * np.pi * D)
-    #
-    # mu_N2 = 1.663 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 107) / (T_hot_in + 107)
-    # mu_H2 = 8.411 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 97) / (T_hot_in + 97)
-    # mu_NH3 = 0.919 * 10 ** -5 * (T_hot_in / 273) ** (3 / 2) * (273 + 370) / (T_hot_in + 370)
-    #
-    # mu_mix = yN2 * mu_N2 + yH2 * mu_H2 + yNH3 * mu_NH3
-    #
-    # Re = rho_mix*Vmax*D/mu_mix
-    # F_fact = 0.316*Re**-0.25
-    # Del_P = F_fact*rho_mix*Vmax^2*l1/2/D
 
     s1_out.update()
     s2_out.update()
@@ -123,16 +103,16 @@ def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K
     s1.update_special()
     s2.update_special()
 
-    s1_out = copy.deepcopy(s1)
-    s2_out = copy.deepcopy(s2)
+    s1_out = copy.copy(s1)
+    s2_out = copy.copy(s2)
 
     if T2out == 0:
-        s2_out.T = e1 * s1.T + (1 - e1) * s2.T
-        s1_out.T = e1 * s2.T + (1 - e1) * s1.T
+        s2_out.T = effectiveness * s1.T + (1 - effectiveness) * s2.T
+        s1_out.T = effectiveness * s2.T + (1 - effectiveness) * s1.T
     else:
-        e1 = (T2out - s2.T)/(s1.T - s2.T)
+        effectiveness = (T2out - s2.T) / (s1.T - s2.T)
         s2_out.T = T2out
-        s1_out.T = e1 * s2.T + (1 - e1) * s1.T
+        s1_out.T = effectiveness * s2.T + (1 - effectiveness) * s1.T
 
     Q = s2.cp * s2.mass_tot * (s2.T - s2_out.T)
 
@@ -141,10 +121,9 @@ def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K
     return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
-def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+273, Vmax=5,
-                             D=0.006):  # -,kg,K,m/s,m
+def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cold_in=10+273, Vmax=5, D=0.006, e1=0):  # -,kg,K,m/s,m
     s.update_special()
-    s_out = copy.deepcopy(s)
+    s_out = copy.copy(s)
 
     pp_NH3 = s_out.yNH3 * s_out.p
     if cool_to_temp==0:
@@ -161,8 +140,9 @@ def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+27
     Cmax = max(C_cool, C_mix)
     Cr = Cmin / Cmax
 
-    e1 = Q / (Cmin * (s_out.T - T_cold_in))
-    print('e1 = %1.3f' %e1)
+    if e1 == 0:
+        e1 = Q / (Cmin * (s_out.T - T_cold_in))
+        #print('e1 = %1.3f' %e1)
 
     NTU = - np.log(1 - e1 * (1 + Cr)) / (1 + Cr)  #
 
@@ -181,7 +161,7 @@ def heat_exchanger_water2gas(s, water_mass_flow, cool_to_temp=0, T_cold_in=10+27
     s_out.T = T_sat
     s_out.p += - Del_P * 10 ** -5
     s_out.update()
-    return s_out, Q
+    return s_out, Q, e1
 
 
 def condensor(s, e2=0.8, water_mass_flow=1, Vmax=5, D=0.006):  ### check units!!
@@ -369,7 +349,6 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
                 w - float, work rate required (W) for PSA
     """
     [N2in, Tin, Pin] = [N2_mol,298,1]
-    mN2in = N2in * 28.0134 / 1000
     s_out = State(0, N2in, 0, Tin, Pin)
     [s_out,power,_] = ptcompressor(s_out,10,373)
 
@@ -378,7 +357,7 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     return s_out, power
 
 
-def electrolysis(H2mol, eta=0.7):  # mol/s to W
+def electrolysis(H2mol, eta=0.65):  # mol/s to W
     """
         Function to return power for PEM electrolysis to separate given mol of H2.
 
@@ -394,11 +373,14 @@ def electrolysis(H2mol, eta=0.7):  # mol/s to W
     return s_out, W, H20_in
 
 
-def heater(state, T_end):
-    power = state.cp * state.mass_tot * (T_end - state.T)
-    state.T = T_end
-    state.update()
-    return state, power
+def heater(s, T_end):
+    if s.T>T_end:
+        return s, 0
+    s_out = copy.copy(s)
+    power = s_out.cp * s_out.mass_tot * (T_end - s_out.T)
+    s_out.T = T_end
+    s_out.update()
+    return s_out, power
 
 
 class Bed(object):
@@ -406,29 +388,33 @@ class Bed(object):
     A class to store properties of a 1D Bed model for a reactor.
     also generates a vector to describe end
     '''
-    def __init__(self, length, diam, mini, newvectmethod=True):
+    def __init__(self, length, diam, mini, newvectmethod=True, divs=19):
         self.length = length
         self.diam = diam
-        self.area = math.pi * (diam / 2) ** 2  # m^2
+        self.r = diam/2
+        self.area = math.pi * self.r ** 2  # m^2
         # generate vect
         if not newvectmethod:
-            self.vect = [0] + np.geomspace(mini, length / 10, 19, endpoint=False).tolist() + \
+            self.vect = [0] + np.geomspace(mini, length / 10, divs, endpoint=False).tolist() + \
                         np.linspace(length / 10, length, 10).tolist()
         else:
-            maxi = 0
-            scale_max = np.floor(np.log10(mini)) + 1
-            scaler = 0
-            OUTPUT = [0]
-            while maxi < self.length:
-                maxi = maxi + mini * 10 ** scaler
-                OUTPUT.append(maxi)
-                if np.log10(maxi) + 0.001 >= scale_max:
-                    scaler += 1
-                    scale_max += 1
-            self.vect = OUTPUT
+            self.vect = [0] + np.geomspace(mini, length / 100, divs, endpoint=False).tolist() + \
+                        np.linspace(length / 100, length, 100).tolist()
 
         self.vectlen = len(self.vect)
-
+    def mass(self,pressure=200, stress=148, sf=2, shell_density=7700, cat_density=7900):
+        '''
+        calculates weight from steel with stresss at 450C = 148MPa, sf=2, density = 7700 by default. cracking not modeled but could be in future
+        '''
+        stress = stress*10**6/sf
+        thickness = pressure*10**5*self.r/stress
+        shell_volume = thickness * math.pi * (self.length * 2 * self.r + self.r ** 2 * 4 / 3)
+        cat_volume = self.r**2*self.length*math.pi
+        shell_mass = shell_volume * shell_density
+        cat_mass = cat_volume * cat_density
+        print('reactor weight = %3.3f' % shell_mass)
+        print('catalyst weight = %3.3f' % cat_mass)
+        return shell_mass,cat_mass
 
 class State(object):
     '''
@@ -491,5 +477,5 @@ class State(object):
         return s1, s2
 
     def __copy__(self):
-        return State(self.H2,self.N2,self.NH3,self.T,self,p)
+        return State(self.H2,self.N2,self.NH3,self.T,self.p)
 
