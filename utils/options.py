@@ -65,4 +65,34 @@ class SSConfig:
 
         self.condensor_water_mfr = config.getfloat('condensor','water_mfr')
         self.condensor_eff = config.getfloat('condensor','eff')
-        
+
+class OutOps:
+    """A configuration class to store output options."""
+
+    VALID_SECTIONS = ['PLOTTING', 'WRITING', 'TERMINAL']
+
+    def __init__(self, file_name=None):
+        """
+        Initialise the options from a given file.
+        """
+        # stores the file name to be used to reset options for multiple
+        # problem groups
+        self.stored_file_name = file_name
+        self.error_message = []
+        self._results_dir = ''
+        config = configparser.ConfigParser(inline_comment_prefixes="#")
+
+        for section in self.VALID_SECTIONS:
+            config.add_section(section)
+
+        if file_name is not None:
+            config.read(file_name)
+
+        self.REACTOR_BED = config.getboolean('PLOTTING', 'REACTOR_BED')
+        self.POWER_PIE = config.getboolean('PLOTTING', 'POWER_PIE')
+
+        self.ITERATION_HISTORY = config.getboolean('WRITING', 'ITERATION_HISTORY')
+        self.STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'ITERATION_HISTORY')
+
+        self.TERMINAL_ITERATION_HISTORY = config.getboolean('WRITING', 'ITERATION_HISTORY')
+        self.TERMINAL_STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'STEADY_STATE_SOLUTION')
