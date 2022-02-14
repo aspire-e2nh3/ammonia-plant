@@ -4,9 +4,9 @@ This file will handle all interaction with the options configuration file.
 import os
 import configparser
 
-class Config:
+class SSConfig:
     """
-    A config class to store and handle all options for ammonia-plant
+    A config class to store and handle all options for the steady-state ammonia-plant
     """
 
     # DEFAULTS: to be driven by a static .ini file stored in utils

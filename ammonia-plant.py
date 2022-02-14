@@ -6,7 +6,7 @@ import numpy as np
 import copy
 import pyromat as pm
 import argparse
-from utils.options import Config
+from utils.options import SSConfig
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
