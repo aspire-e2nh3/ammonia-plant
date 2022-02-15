@@ -62,6 +62,57 @@ def sat_point_lookup(P_sat):
              1.0481950e+01, 1.0727780e+01, 1.0953950e+01]]  # data in K, MPa
     return float(np.interp(P_sat, [10 * x for x in data[1]], data[0]))
 
+def sat_point_pressure_lookup(T_sat):
+    # ammonia saturation point T(K), p(bar)
+    data = [
+        [2.3968597e+02, 2.4048963e+02, 2.4129599e+02, 2.4210506e+02, 2.4291683e+02, 2.4373133e+02, 2.4454856e+02,
+         2.4536853e+02, 2.4619125e+02, 2.4701673e+02, 2.4784497e+02, 2.4867599e+02, 2.4950980e+02, 2.5034641e+02,
+         2.5118582e+02, 2.5202804e+02, 2.5287309e+02, 2.5372097e+02, 2.5457170e+02, 2.5542527e+02, 2.5628171e+02,
+         2.5714102e+02, 2.5800322e+02, 2.5886830e+02, 2.5973628e+02, 2.6060718e+02, 2.6148099e+02, 2.6235773e+02,
+         2.6323742e+02, 2.6412005e+02, 2.6500564e+02, 2.6589421e+02, 2.6678575e+02, 2.6768028e+02, 2.6857781e+02,
+         2.6947835e+02, 2.7038191e+02, 2.7128850e+02, 2.7219812e+02, 2.7311080e+02, 2.7402654e+02, 2.7494535e+02,
+         2.7586724e+02, 2.7679222e+02, 2.7772030e+02, 2.7865150e+02, 2.7958581e+02, 2.8052326e+02, 2.8146386e+02,
+         2.8240760e+02, 2.8335451e+02, 2.8430460e+02, 2.8525787e+02, 2.8621434e+02, 2.8717401e+02, 2.8813691e+02,
+         2.8910303e+02, 2.9007239e+02, 2.9104500e+02, 2.9202087e+02, 2.9300001e+02, 2.9398244e+02, 2.9496816e+02,
+         2.9595719e+02, 2.9694953e+02, 2.9794520e+02, 2.9894421e+02, 2.9994657e+02, 3.0095228e+02, 3.0196138e+02,
+         3.0297385e+02, 3.0398972e+02, 3.0500899e+02, 3.0603169e+02, 3.0705781e+02, 3.0808737e+02, 3.0912039e+02,
+         3.1015687e+02, 3.1119682e+02, 3.1224026e+02, 3.1328720e+02, 3.1433765e+02, 3.1539162e+02, 3.1644913e+02,
+         3.1751018e+02, 3.1857479e+02, 3.1964297e+02, 3.2071473e+02, 3.2179008e+02, 3.2286904e+02, 3.2395162e+02,
+         3.2503783e+02, 3.2612768e+02, 3.2722118e+02, 3.2831835e+02, 3.2941920e+02, 3.3052374e+02, 3.3163198e+02,
+         3.3274394e+02, 3.3385963e+02, 3.3497906e+02, 3.3610224e+02, 3.3722919e+02, 3.3835992e+02, 3.3949444e+02,
+         3.4063276e+02, 3.4177490e+02, 3.4292087e+02, 3.4407068e+02, 3.4522435e+02, 3.4638188e+02, 3.4754330e+02,
+         3.4870861e+02, 3.4987782e+02, 3.5105096e+02, 3.5222803e+02, 3.5340905e+02, 3.5459403e+02, 3.5578298e+02,
+         3.5697592e+02, 3.5817286e+02, 3.5937381e+02, 3.6057879e+02, 3.6178780e+02, 3.6300088e+02, 3.6421802e+02,
+         3.6543924e+02, 3.6666455e+02, 3.6789397e+02, 3.6912752e+02, 3.7036520e+02, 3.7160703e+02, 3.7285303e+02,
+         3.7410320e+02, 3.7535757e+02, 3.7661614e+02, 3.7787893e+02, 3.7914596e+02, 3.8041723e+02, 3.8169277e+02,
+         3.8297258e+02, 3.8425669e+02, 3.8554510e+02, 3.8683783e+02, 3.8813489e+02, 3.8943630e+02, 3.9074208e+02,
+         3.9205224e+02, 3.9336678e+02, 3.9468574e+02, 3.9600912e+02, 3.9733693e+02, 3.9866920e+02, 4.0000594e+02,
+         4.0134715e+02, 4.0269287e+02, 4.0367440e+02],
+        [1.0167000e-01, 1.0466000e-01, 1.0836000e-01, 1.1227000e-01, 1.1617000e-01, 1.2043000e-01, 1.2462000e-01,
+         1.2919000e-01, 1.3359000e-01, 1.3858000e-01, 1.4340000e-01, 1.4857000e-01, 1.5372000e-01, 1.5927000e-01,
+         1.6490000e-01, 1.7085000e-01, 1.7689000e-01, 1.8315000e-01, 1.8975000e-01, 1.9634000e-01, 2.0355000e-01,
+         2.1048000e-01, 2.1835000e-01, 2.2578000e-01, 2.3423000e-01, 2.4220000e-01, 2.5109000e-01, 2.5981000e-01,
+         2.6918000e-01, 2.7870000e-01, 2.8856000e-01, 2.9897000e-01, 3.0955000e-01, 3.2071000e-01, 3.3184000e-01,
+         3.4402000e-01, 3.5574000e-01, 3.6904000e-01, 3.8160000e-01, 3.9562000e-01, 4.0909000e-01, 4.2438000e-01,
+         4.3912000e-01, 4.5495000e-01, 4.7074000e-01, 4.8802000e-01, 5.0497000e-01, 5.2317000e-01, 5.4168000e-01,
+         5.6085000e-01, 5.8107000e-01, 6.0124000e-01, 6.2332000e-01, 6.4496000e-01, 6.6864000e-01, 6.9141000e-01,
+         7.1726000e-01, 7.4168000e-01, 7.6892000e-01, 7.9561000e-01, 8.2429000e-01, 8.5346000e-01, 8.8366000e-01,
+         9.1552000e-01, 9.4791000e-01, 9.8208000e-01, 1.0161800e+00, 1.0534900e+00, 1.0900600e+00, 1.1228400e+00,
+         1.1573400e+00, 1.1913600e+00, 1.2263900e+00, 1.2624500e+00, 1.3004000e+00, 1.3386400e+00, 1.3779900e+00,
+         1.4185100e+00, 1.4602100e+00, 1.5031400e+00, 1.5473400e+00, 1.5938600e+00, 1.6407200e+00, 1.6889600e+00,
+         1.7386100e+00, 1.7897300e+00, 1.8423500e+00, 1.8965100e+00, 1.9535300e+00, 2.0122600e+00, 2.0700900e+00,
+         2.1254700e+00, 2.1879600e+00, 2.2493900e+00, 2.3095700e+00, 2.3744100e+00, 2.4379300e+00, 2.5063800e+00,
+         2.5767500e+00, 2.6456900e+00, 2.7199700e+00, 2.7927300e+00, 2.8711400e+00, 2.9498500e+00, 3.0385300e+00,
+         3.1098000e+00, 3.1971100e+00, 3.2805200e+00, 3.3661200e+00, 3.4539500e+00, 3.5440700e+00, 3.6412200e+00,
+         3.7362300e+00, 3.8361900e+00, 3.9388100e+00, 4.0441900e+00, 4.1363700e+00, 4.2552400e+00, 4.3662700e+00,
+         4.4744300e+00, 4.5852600e+00, 4.7049000e+00, 4.8338800e+00, 4.9504300e+00, 5.0763300e+00, 5.1987300e+00,
+         5.3378100e+00, 5.4735600e+00, 5.6055300e+00, 5.7406900e+00, 5.8942700e+00, 6.0325000e+00, 6.1859200e+00,
+         6.3350700e+00, 6.5003600e+00, 6.6571000e+00, 6.8132200e+00, 6.9909900e+00, 7.1503400e+00, 7.3274600e+00,
+         7.5089700e+00, 7.6949800e+00, 7.8754400e+00, 8.0445800e+00, 8.2704400e+00, 8.4644100e+00, 8.6573400e+00,
+         8.8889500e+00, 9.0857000e+00, 9.2987800e+00, 9.5414100e+00, 9.7588900e+00, 9.9877600e+00, 1.0241760e+01,
+         1.0481950e+01, 1.0727780e+01, 1.0953950e+01]]  # data in K, MPa
+    return float(np.interp(T_sat, data[0],[10 * x for x in data[1]]))
+
 
 def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
@@ -92,12 +143,13 @@ def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check
     return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
 
-def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.75):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
     '''
-    Heat exchanger: e-NTU form.
+    Heat exchanger: e-NTU form. defaults to eff =0.75 with no input
     :param s1: state of hot stream input
     :param s2: state of cold stream input
-    :param effectiveness: effectiveness
+    :param T2out: desired temp of output stream
+    :param effectiveness: effectiveness (if set directly
     :return:
     '''
     s1.update_special()
@@ -121,16 +173,17 @@ def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K
     return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
-def heat_exchanger_water2gas(s, water_mass_flow=10, T_cold_in=10+273, Vmax=5, D=0.006, e=0):  # -,kg,K,m/s,m
+def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cin=10+273, Vmax=5, D=0.006, e=0):  # -,kg,K,m/s,m
 
     s.update_special()
     s_out = copy.copy(s)
 
-    pp_NH3 = s_out.yNH3 * s_out.p
+    if cool_to_temp != 0:
+        T_sat = cool_to_temp
+    else:
+        T_sat = sat_point_lookup(s_out.yNH3 * s_out.p)
 
-    T_sat = sat_point_lookup(pp_NH3)
-
-    C_mix = s_out.cp * s_out.mass_tot  # J/kg/K
+    C_mix = s_out.cp * s_out.mass_tot  # J/kg/K * kg/s
 
     Q = C_mix * (s_out.T - T_sat)
 
@@ -141,11 +194,12 @@ def heat_exchanger_water2gas(s, water_mass_flow=10, T_cold_in=10+273, Vmax=5, D=
     Cr = Cmin / Cmax
 
     if e == 0:
-        e = Q / (Cmin * (s_out.T - T_cold_in))
+        e = Q / (Cmin * (s_out.T - T_cin))
+
 
     NTU = (1/(Cr-1)) * np.log((e - 1) / (Cr * e - 1))  #
 
-    water_temp_out = T_cold_in + Q*e/(C_cool)
+    water_temp_out = T_cin + Q*e/(C_cool)
 
     U1 = 300  # W/m^2/K
 
@@ -165,12 +219,12 @@ def heat_exchanger_water2gas(s, water_mass_flow=10, T_cold_in=10+273, Vmax=5, D=
     return s_out, Q, e
 
 
-def condensor(s, e2=0.8, water_mass_flow=1, Vmax=5, D=0.006):  ### check units!!
+def condensor(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
 
     s.update_special()
     s_out = copy.deepcopy(s)
 
-    Del_H_c = 22.7 * 1000 * s_out.NH3  # J/mol * mol
+    Del_H_evap = 22.7 * 1000 * s_out.NH3  # J/mol * mol
 
     C_mix = s_out.cp * s_out.mass_tot
 
@@ -180,28 +234,58 @@ def condensor(s, e2=0.8, water_mass_flow=1, Vmax=5, D=0.006):  ### check units!!
     Cmax = max(C_cool, C_mix)
     Cr = Cmin / Cmax
 
-    # e2 = Del_H_c/(Cmin*(T_hot_in-T_cold_in))
+    NTU = -np.log(1-e)
 
-    Del_H_act = e2 * Del_H_c  # J
+    T_cout = s.T - (s.T - T_cin)*np.exp(-NTU)
 
-    NTU = - np.log(1 - e2 * (1 + Cr)) / (1 + Cr)  #
+    X = min(1,C_cool * (T_cout - T_cin)/Del_H_evap)
 
+    #pressure drop calcs
     U2 = 750  # W/m^2/K
-
     A2 = NTU * Cmin / U2
-
     Q_flow = s_out.mass_tot / s_out.rho  # m^3/s?
     num_p = 4 * Q_flow / (Vmax * np.pi * D ** 2)
     l1 = A2 / (num_p * np.pi * D)
-
     Re = s_out.rho * Vmax * D / s_out.mu
     F_fact = 0.316 * Re ** -0.25
     Del_P = F_fact * s_out.rho * Vmax ** 2 * l1 / 2 / D
 
+
     s_out.p += - Del_P * 10 ** -5
-    s_out.NH3 = s_out.NH3 * (1 - e2)
+    s_out.NH3 = s_out.NH3 * (1.00001-X)
     s_out.update()
-    return s_out, Del_H_act
+    return s_out, X, Del_H_evap*X,T_cout
+
+def condenser_crude(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):
+    initial_pp = s.p * s.yNH3
+    C_cool = water_mass_flow * 4180  # 1 kg/s * 4180 J/kg/K
+    T_cout = T_cin
+
+    s_out = copy.copy(s)
+
+    criterion = 0.01
+    stop = 0
+    while stop == 0:
+        final_pp = sat_point_pressure_lookup(T_cout)
+        ammonia_removed = (1-final_pp/initial_pp)
+
+
+        #condensor guess
+
+        s_out.NH3 = s.NH3 * (1-ammonia_removed)
+        Q_latent = s.NH3 * ammonia_removed * 22.7 * 1000
+        s_out.T = T_cout
+        s_out.update()
+        T_cout_new = T_cin + (Q_latent - (s_out.cp*s.mass_tot*s_out.T) + (s.cp*s.mass_tot*s.T))/C_cool
+
+        if abs(T_cout_new - T_cout) < criterion:
+            stop = 1
+        T_cout = T_cout_new
+
+
+    power = C_cool * (T_cout - T_cin)
+    s_out.update()
+    return s_out, ammonia_removed, power, T_cout
 
 
 def reactorStep(s, dX, area):  # mol/s, K, Pa
