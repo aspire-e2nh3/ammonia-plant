@@ -45,10 +45,6 @@ def main():
     # set reactor inlet temp
     reactor_in_temp = cfg.reactor_T_1_0
 
-    # input mols of n2 and h2
-    total_mol_N2 = 0.1   # mol
-    total_mol_H2 = total_mol_N2 * 3 # mol
-
     # initialise iteration limits
     inlet_temp = cfg.reactor_T_0_0
     HTHE_DelT = reactor_in_temp - inlet_temp
