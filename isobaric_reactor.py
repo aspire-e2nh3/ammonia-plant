@@ -121,15 +121,15 @@ def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.8):  # mol,mol,mol,K
     return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
-def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cold_in=10+273, Vmax=5, D=0.006, e1=0):  # -,kg,K,m/s,m
+def heat_exchanger_water2gas(s, water_mass_flow=10, T_cold_in=10+273, Vmax=5, D=0.006, e=0):  # -,kg,K,m/s,m
+
     s.update_special()
     s_out = copy.copy(s)
 
     pp_NH3 = s_out.yNH3 * s_out.p
-    if cool_to_temp==0:
-        T_sat = sat_point_lookup(pp_NH3)
-    else:
-        T_sat = cool_to_temp
+
+    T_sat = sat_point_lookup(pp_NH3)
+
     C_mix = s_out.cp * s_out.mass_tot  # J/kg/K
 
     Q = C_mix * (s_out.T - T_sat)
@@ -140,11 +140,12 @@ def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cold_in=10
     Cmax = max(C_cool, C_mix)
     Cr = Cmin / Cmax
 
-    if e1 == 0:
-        e1 = Q / (Cmin * (s_out.T - T_cold_in))
-        #print('e1 = %1.3f' %e1)
+    if e == 0:
+        e = Q / (Cmin * (s_out.T - T_cold_in))
 
-    NTU = - np.log(1 - e1 * (1 + Cr)) / (1 + Cr)  #
+    NTU = (1/(Cr-1)) * np.log((e - 1) / (Cr * e - 1))  #
+
+    water_temp_out = T_cold_in + Q*e/(C_cool)
 
     U1 = 300  # W/m^2/K
 
@@ -161,7 +162,7 @@ def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cold_in=10
     s_out.T = T_sat
     s_out.p += - Del_P * 10 ** -5
     s_out.update()
-    return s_out, Q, e1
+    return s_out, Q, e
 
 
 def condensor(s, e2=0.8, water_mass_flow=1, Vmax=5, D=0.006):  ### check units!!
@@ -300,10 +301,10 @@ def compressor(s, p_out, t_out=0, eta=0.7):
     s_out = copy.deepcopy(s)
 
     y = s_out.gamma
-    r_p = p_out / s_out.p
+    r_p = p_out / s.p
     a = (y - 1) / y
-    power = s_out.cp * s_out.mass_tot*s_out.T / eta * (r_p ** a - 1)
-    s_out.T = s_out.T * (1 + r_p ** a / eta - 1 / eta)
+    power = s.cp * s.mass_tot*s.T / eta * (r_p ** a - 1)
+    s_out.T = s.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
     s_out.update()
     return s_out, power, 0

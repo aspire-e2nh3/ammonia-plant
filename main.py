@@ -6,7 +6,7 @@ import copy
 import pyromat as pm
 
 # initial inputs - define bed structure, quench ratio
-bed1 = Bed(2.0, 0.05, 0.001, False)
+bed1 = Bed(2.0, 0.05, 0.001, True)
 bed1.mass()
 '''
 quench_ratio = 0.6 # amount into first bed/total amount
@@ -14,7 +14,7 @@ bed2 = Bed(3, 0.05, 0.001, False)
 '''
 
 # criterion for stopping heat exchanger integration
-Criterion = 0.001
+Criterion = 0.01
 
 # set reactor inlet temp
 reactor_in_temp = 663
@@ -59,7 +59,7 @@ print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
 
 [Pipe_IN_cooled,power_consumption["inflow cooling"],_] = heat_exchanger_water2gas(Pipe_IN, 10, inlet_temp)
 
-Pipe_RE = State(recycle_estimate*total_mol_H2,recycle_estimate*total_mol_N2, 0.5*total_mol_N2, inlet_temp, Reactor_Pressure-2)
+Pipe_RE = State(recycle_estimate*total_mol_H2,recycle_estimate*total_mol_N2, 0.5*total_mol_N2, inlet_temp-80, Reactor_Pressure-2)
 
 print(power_consumption)
 
@@ -78,8 +78,7 @@ while (stop == 0):
     Pipe_1c = copy.copy(Pipe_1b)
     Pipe_1c.T += HTHE_DelT
 
-    [Pipe_1d,power_consumption["heater"]] = heater(Pipe_1c, 663)
-
+    [Pipe_1d,power_consumption["heater"]] = heater(Pipe_1c, reactor_in_temp)
 
     # Initialise bed data
     Bed_data = []
@@ -103,24 +102,25 @@ while (stop == 0):
     Pipe_2a = copy.copy(Bed_iterator)
     Pipe_2a.p -= 2
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 1b to Pipe 2a) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     # estimate heat exchange variant
-    [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heex] = heat_exchanger_counter(Pipe_2a, Pipe_1b, effectiveness=0.725)
+    [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heex] = heat_exchanger_counter(Pipe_2a, Pipe_1b)
     #print(effectiveness_heex)
     HTHE_DelT_resid = abs(HTHE_DelT - HTHE_DelT_new)
 
     HTHE_DelT = HTHE_DelT_new
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (2b to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    [Pipe_2c,power_consumption["Chiller"],effectiveness_cool] = heat_exchanger_water2gas(Pipe_2b, e1=0.8)
+    [Pipe_2c,power_consumption["Chiller"],effectiveness_cool] = heat_exchanger_water2gas(Pipe_2b, e=0.8)
     #print(effectiveness_cool)
     #print('\n')
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    [Pipe_RE, power_consumption["Condensor"]] = condensor(Pipe_2c, e2=0.8, water_mass_flow=10)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condenser ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    [Pipe_RE, power_consumption["Condenser"]] = condensor(Pipe_2c, e2=0.8, water_mass_flow=10)
 
     print(Pipe_RE.yH2)
+    print(HTHE_DelT_resid)
     if HTHE_DelT_resid < Criterion:
         stop = 1
 
@@ -139,6 +139,7 @@ print('Recompressed = %3.1f' % Pipe_1b.T, 'K')
 # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
 
 print('Reheated stream = %3.1f' % Pipe_1c.T, 'K')
+
 print('heated to 663K stream = %3.1f' % Pipe_1d.T, 'K')
 
 print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], Bed_iterator.NH3/(2*Pipe_1c.N2)*100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
@@ -174,6 +175,8 @@ print('power consumption = ', power_consumption)
 print('\n Stream data :')
 Bed_data_T = np.array(Bed_data).T.tolist()
 
+print(bed1.vect)
+
 print(Pipe_IN_cooled.store())
 print(Pipe_1a.store())
 print(Pipe_1b.store())
@@ -192,4 +195,4 @@ if plot:
     plt.plot(x_plot_data,y_plot_data)
     plt.show()
 
-# print(bedvect)
+
