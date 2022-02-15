@@ -321,7 +321,6 @@ def ptcompressor(s, p_out, t_out=0, eta=0.7):
     """
     n = 1/(1-(math.log(t_out/s.T)/math.log(p_out/s.p)))
     a = n/(n-1)
-    print('polytropic index = %1.3f' %n)
 
 
     s.update_special()
@@ -334,7 +333,7 @@ def ptcompressor(s, p_out, t_out=0, eta=0.7):
     s_out.T = t_out
     s_out.p = p_out
     s_out.update()
-    return s_out, power, Q_out
+    return s_out, power, Q_out, n
 
 
 def psa_estimate(N2_mol, p_out=10, eta=0.7):
@@ -350,7 +349,7 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     """
     [N2in, Tin, Pin] = [N2_mol,298,1]
     s_out = State(0, N2in, 0, Tin, Pin)
-    [s_out,power,_] = ptcompressor(s_out,10,373)
+    [s_out,power,_,_] = ptcompressor(s_out,10,373)
 
 
 
@@ -412,8 +411,6 @@ class Bed(object):
         cat_volume = self.r**2*self.length*math.pi
         shell_mass = shell_volume * shell_density
         cat_mass = cat_volume * cat_density
-        print('reactor weight = %3.3f' % shell_mass)
-        print('catalyst weight = %3.3f' % cat_mass)
         return shell_mass,cat_mass
 
 class State(object):

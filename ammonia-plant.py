@@ -6,7 +6,7 @@ import numpy as np
 import copy
 import pyromat as pm
 import argparse
-from utils.options import SSConfig
+from utils.options import SSConfig, OutOps
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -24,12 +24,12 @@ def main():
     """ Main to run the ammonia plant"""
     
     if args.configuration is None:
-        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_options.ini')
+        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_ssconfig.ini')
     else:
         fcfg = args.configuration # pathname from input argument
-    cfg = Config(fcfg) # initialise
+    cfg = SSConfig(fcfg) # initialise
 
-    if args.ouptut is None:
+    if args.output is None:
         fops = os.path.join(os.path.dirname(__file__),'utils','default_output_ops.ini')
     else:
         fops = args.output # pathname from input argument
@@ -40,7 +40,7 @@ def main():
                cfg.reactor_diameter,
                cfg.reactor_mini,
                False)
-    bed1.mass()
+    shell_mass, cat_mass = bed1.mass()
 
     # set reactor inlet temp
     reactor_in_temp = cfg.reactor_T_1_0
@@ -63,25 +63,28 @@ def main():
     [Pipe_N2_LP, power_consumption["PSA"]] = psa_estimate(cfg.n2)                    # MAYBE ADD AIR_IN?
     [Pipe_H2_LP, power_consumption["electrolysis"],Water_in] = electrolysis(cfg.h2)
 
-    print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
-    print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K\n')
-
     # compress N2 and H2 lines
 
-    [Pipe_N2_HP, power_consumption["N2_comp"],heatlost1] = ptcompressor(Pipe_N2_LP,
+    [Pipe_N2_HP, power_consumption["N2_comp"],heatlost1, n1] = ptcompressor(Pipe_N2_LP,
                                                                     cfg.reactor_P_0,
                                                                     t_out=cfg.reactor_T_0_0+cfg.n2compressor_dT)
-    [Pipe_H2_HP, power_consumption["H2_comp"],heatlost2] = ptcompressor(Pipe_H2_LP,
+    [Pipe_H2_HP, power_consumption["H2_comp"],heatlost2, n2] = ptcompressor(Pipe_H2_LP,
                                                                     cfg.reactor_P_0,
                                                                     t_out=cfg.reactor_T_0_0+cfg.h2compressor_dT)
-
-    print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K\n')
-    print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K\n')
 
     # mix H2 and N2 lines
     Pipe_IN = mixer(Pipe_H2_HP,Pipe_N2_HP)
 
-    print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
+    if ops.TERMINAL_LOG:
+        print('reactor weight = %3.3f' % shell_mass)
+        print('catalyst weight = %3.3f' % cat_mass)
+        print('N2 Compressor Polytropic Index = %3.3f' % n1)
+        print('H2 Compressor Polytropic Index = %3.3f' % n1)
+        print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
+        print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K\n')
+        print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
+        print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K\n')
+        print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K\n')
 
     [Pipe_IN_cooled,power_consumption["inflow cooling"],_] = heat_exchanger_water2gas(Pipe_IN, 10, cfg.reactor_T_0_0)
 
@@ -90,8 +93,8 @@ def main():
                     0.5*total_mol_N2,
                     cfg.reactor_T_0_0,
                     cfg.reactor_P_0-2)
-
-    print(power_consumption)
+    if ops.TERMINAL_LOG:
+        print(power_consumption)
 
     stop = 0
     while (stop == 0):
@@ -157,11 +160,14 @@ def main():
                                                               e2=cfg.condensor_eff,
                                                               water_mass_flow=cfg.condensor_water_mfr)
 
-        print(Pipe_RE.yH2)
+        if ops.TERMINAL_LOG:
+            print(Pipe_RE.yH2)
         if HTHE_DelT_resid < cfg.reactor_convergence:
             stop = 1
 
-    if ops.TERMINAL_ITERATION_HISTORY:
+    Bed_data_T = np.array(Bed_data).T.tolist()
+
+    if ops.TERMINAL_LOG:
         print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
         # Mix recycle stream in
         print('New Feed (cooled) = %3.1f' % Pipe_IN_cooled.T, 'K')
@@ -206,7 +212,6 @@ def main():
         print('power consumption = ', power_consumption)
 
         print('\n Stream data :')
-        Bed_data_T = np.array(Bed_data).T.tolist()
 
         print(Pipe_IN_cooled.store())
         print(Pipe_1a.store())

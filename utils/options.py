@@ -89,10 +89,9 @@ class OutOps:
             config.read(file_name)
 
         self.REACTOR_BED = config.getboolean('PLOTTING', 'REACTOR_BED')
-        self.POWER_PIE = config.getboolean('PLOTTING', 'POWER_PIE')
+        self.POWER_PIE_CHART = config.getboolean('PLOTTING', 'POWER_PIE_CHART')
 
         self.ITERATION_HISTORY = config.getboolean('WRITING', 'ITERATION_HISTORY')
-        self.STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'ITERATION_HISTORY')
+        self.STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'STEADY_STATE_SOLUTION')
 
-        self.TERMINAL_ITERATION_HISTORY = config.getboolean('WRITING', 'ITERATION_HISTORY')
-        self.TERMINAL_STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'STEADY_STATE_SOLUTION')
+        self.TERMINAL_LOG = config.getboolean('TERMINAL', 'LOG')
