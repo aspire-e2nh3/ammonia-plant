@@ -20,7 +20,7 @@ def main():
     """ Main to run the ammonia plant"""
     
     if args.configuration is None:
-        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_options.ini')
+        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_config.ini')
     else:
         fcfg = args.configuration # pathname from input argument
     cfg = Config(fcfg) # initialise 
