@@ -88,9 +88,9 @@ def main():
 
     [Pipe_IN_cooled,power_consumption["inflow cooling"],_] = heat_exchanger_water2gas(Pipe_IN, 10, cfg.reactor_T_0_0)
 
-    Pipe_RE = State(recycle_estimate*total_mol_H2,
-                    recycle_estimate*total_mol_N2,
-                    0.5*total_mol_N2,
+    Pipe_RE = State(recycle_estimate*cfg.h2,
+                    recycle_estimate*cfg.n2,
+                    0.5*cfg.n2,
                     cfg.reactor_T_0_0,
                     cfg.reactor_P_0-2)
     if ops.TERMINAL_LOG:
