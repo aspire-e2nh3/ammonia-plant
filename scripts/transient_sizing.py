@@ -1,10 +1,18 @@
 import os
+import argparse
 import pandas as pd
 from scipy.integrate import trapezoid
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
 from sklearn.metrics import balanced_accuracy_score
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-sc",
+    "--scale",
+    help="specify the capacity of the transient energy source in W")
+args = parser.parse_args()
 
 
 def read_wind_data(pfolder, fname):
@@ -110,17 +118,20 @@ def find_charges(bal):
     ints_n = []
     start_locs = charge_loc_p[0:-2]
     end_locs = charge_loc_p[1:-1]
+    t_0 = np.array(bal.time.iloc[start_locs].tolist())
+    t_1 = np.array(bal.time.iloc[end_locs].tolist())
     for loc_0, loc_1 in zip(start_locs, end_locs):
         ints_p.append(trapezoid(bal_p.power.iloc[loc_0:loc_1],
                                 bal_p.time.iloc[loc_0:loc_1]))
         ints_n.append(trapezoid(bal_n.power.iloc[loc_0:loc_1],
                                 bal_n.time.iloc[loc_0:loc_1]))
     
-    cycles = pd.DataFrame(None, columns=["id_0","id_1","t_0","t_1","int_p","int_n"])
+    cycles = pd.DataFrame(None, columns=["id_0","id_1","t_0","t_1","dt","int_p","int_n"])
     cycles.id_0 = start_locs
     cycles.id_1 = end_locs
-    cycles.t_0 = bal.time.iloc[start_locs].tolist()
-    cycles.t_1 = bal.time.iloc[end_locs].tolist()
+    cycles.t_0 = t_0
+    cycles.t_1 = t_1
+    cycles.dt = t_1 - t_0
     cycles.int_p = ints_p
     cycles.int_n = ints_n
 
@@ -129,7 +140,11 @@ def find_charges(bal):
 
 def main():
     """Main function to run transient sizing method."""
-    scale = 1e5
+
+    if args.scale is None:
+        scale = 1e5
+    else:
+        scale = float(args.scale)
 
     pfolder = os.path.join(os.path.dirname(__file__),"data")
     fname = "UK_gridwatch_wind_2020.csv"
@@ -141,14 +156,30 @@ def main():
 
     plt.figure
     plt.plot(bal_p.time,
-             bal_p.power*1e3,
+             bal_p.power/1e3,
              bal_n.time,
-             bal_n.power*1e3,
+             bal_n.power/1e3,
              ch_loc.time,
-             ch_loc.power*1e3,'+')
+             ch_loc.power/1e3,'+')
     plt.legend(['Charging','Discharging','Cycle Bounds'])
     plt.xlabel('Time (s)')
     plt.ylabel('Power (kW)')
+    plt.title("Source Capacity: %3.1f kW \n"
+              "Largest Charging Storage: %3.1f kWh \n"
+              "Largest Discharging Storage: %3.1f kWh \n"
+              % (scale/1e3,
+              cycles.int_p.max()/3.6e6,
+              cycles.int_n.min()/3.6e6
+                )
+             )
+    plt.show()
+
+    plt.figure
+    plt.plot(cycles.dt, cycles.int_p/3.6e6, '+',
+             cycles.dt, cycles.int_n/3.6e6, '+')
+    plt.legend(['Charging','Discharging'])
+    plt.xlabel('Duration (s)')
+    plt.ylabel('Energy Stored (kWh)')
     plt.title("Source Capacity: %3.1f kW \n"
               "Largest Charging Cycle: %3.1f kWh \n"
               "Largest Discharging Cycle: %3.1f kWh \n"
@@ -158,6 +189,8 @@ def main():
                 )
              )
     plt.show()
+
+    
     
 
 if __name__ == "__main__":
