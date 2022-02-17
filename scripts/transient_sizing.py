@@ -5,7 +5,6 @@ from scipy.integrate import trapezoid
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
-from sklearn.metrics import balanced_accuracy_score
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -153,6 +152,22 @@ def main():
     bsld = find_baseload(trns)
     bal = find_balance(trns,bsld)
     bal_p, bal_n, ch_loc, cycles = find_charges(bal)
+
+    plt.figure
+    plt.plot(trns.time,
+             trns.power/1e3,
+             bsld.time,
+             bsld.power/1e3)
+    plt.legend(['Tranisent Source','Baseload'])
+    plt.xlabel('Time (s)')
+    plt.ylabel('Power (kW)')
+    plt.title("Source Capacity: %3.1f kW \n"
+              "Baseload Power: %3.1f kW"
+              % (scale/1e3,
+                 bsld.power.iloc[0]/1e3
+                )
+             )
+    plt.show()
 
     plt.figure
     plt.plot(bal_p.time,
