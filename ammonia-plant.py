@@ -297,9 +297,13 @@ def multi_run(cfg, ops, param=None, vals=None):
     stream_indices = stream_temp.index
     power_indices = power_temp.index.values.tolist()
     power_data = pd.DataFrame(tps_lst(power_lst), index=power_indices, columns=run_headers)
+    n2_data = pd.DataFrame(tps_lst(n2_lst), index=stream_indices, columns=run_headers)
+    h2_data = pd.DataFrame(tps_lst(h2_lst), index=stream_indices, columns=run_headers)
+    nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
     temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
+    pressure_data = pd.DataFrame(tps_lst(pressure_lst), index=stream_indices, columns=run_headers)
 
-    return power_data, temperature_data
+    return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
 
 def tps_lst(list_of_lists):
     """"""
@@ -318,14 +322,21 @@ def main():
 
     cfg, ops = get_configs(args)
 
-    power_data, temperature_data = multi_run(cfg, ops, param=chosen_param, vals=rng)
+    power, n2, h2, nh3, temperature, pressure  = multi_run(cfg, ops, param=chosen_param, vals=rng)
 
-    print(power_data)
-    print(temperature_data)
+    # power has a unique set of indices, see the following print out as an example:
+    print('Output for power:')
+    print(power) # look at the index column to see what keys are valid (PSA, etc...)
+    
+    # n2, h2, nh3, temperature, pressure are separate DataFrames with the same indices.
+    # See the following print out as an example:
+    print('Output for a state variable:')
+    print(temperature) # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
+    
 
     chosen_solution = "recompressor"
     plt.figure
-    plt.plot(rng, power_data.loc[chosen_solution])
+    plt.plot(rng, power.loc[chosen_solution])
     plt.xlabel(chosen_param)
     plt.ylabel(chosen_solution)
     plt.show()
