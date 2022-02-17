@@ -1,13 +1,4 @@
-from ammonia_plant.isobaric_reactor import *
+from isobaric_reactor import *
 
+print(sat_point_lookup(T_sat=20.16))
 
-
-state_test = State(3,1,2,298,10)
-
-print(state_test.cp)
-print(state_test.mu)
-
-state_test.T = 498
-state_test.update()
-print(state_test.cp)
-print(state_test.mu)

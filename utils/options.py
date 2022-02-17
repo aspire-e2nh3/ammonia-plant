@@ -11,9 +11,8 @@ class SSConfig:
 
     # DEFAULTS: to be driven by a static .ini file stored in utils
 
-    VALID_SECTIONS = ['reactor', 'n2compressor', 'h2compressor',
-                      'recompressor', 'heater', 'mixer', 'heat_exchanger_counter',
-                      'heat_exchanger_water2gas', 'condensor']
+    VALID_SECTIONS = ['plant', 'n2compressor', 'h2compressor', 'precooler', 'recompressor', 'reactor',
+                      'heater', 'heat_exchanger', 'chiller', 'condenser']
 
     #VALID = {'MINIMIZERS': VALID_MINIMIZERS,
     #         'FITTING': VALID_FITTING,
@@ -40,31 +39,35 @@ class SSConfig:
         if file_name is not None:
             config.read(file_name)
 
-        self.reactor_T_0_0 = config.getfloat('reactor','T_0_0')
-        self.reactor_T_1_0 = config.getfloat('reactor','T_1_0')
-        self.reactor_P_0 = config.getfloat('reactor','P_0')
-        self.reactor_length = config.getfloat('reactor','length')
-        self.reactor_diameter = config.getfloat('reactor','diameter')
-        self.reactor_mini = config.getfloat('reactor','mini')
-        self.reactor_convergence = config.getfloat('reactor','convergence')
-        self.n2 = config.getfloat('reactor','n2')
-        self.h2 = config.getfloat('reactor','h2')
-        self.reactor_dT_res = config.getfloat('reactor','dT_res')
-        self.recycle = config.getfloat('reactor','recycle')
+        self.plant_convergence     = config.getfloat('plant', 'convergence')
+        self.plant_pressure        = config.getfloat('plant', 'pressure')
+        self.plant_n2              = config.getfloat('plant', 'n2')
+        self.plant_h2              = config.getfloat('plant', 'h2')
 
+        self.precooler_water_mfr    = config.getfloat('precooler', 'water_mfr')
+        self.precooler_T_cold_in    = config.getfloat('precooler', 'T_cold_in')
 
-        self.n2compressor_dT = config.getfloat('n2compressor','dT')
+        self.n2compressor_dT        = config.getfloat('n2compressor', 'dT')
 
-        self.h2compressor_dT = config.getfloat('h2compressor','dT')
+        self.h2compressor_dT        = config.getfloat('h2compressor', 'dT')
 
-        self.recompressor_eta = config.getfloat('recompressor','eta')
+        self.recompressor_eta       = config.getfloat('recompressor', 'eta')
 
-        self.he_counter_eff = config.getfloat('he_counter','eff')
+        self.reactor_T_IN           = config.getfloat('reactor', 'T_IN')
+        self.reactor_T_1c           = config.getfloat('reactor', 'T_1c')
+        self.reactor_length         = config.getfloat('reactor', 'length')
+        self.reactor_diameter       = config.getfloat('reactor', 'diameter')
+        self.reactor_minimum_step   = config.getfloat('reactor', 'minimum_step')
 
-        self.he_water2gas_eff = config.getfloat('he_water2gas','eff')
+        self.heat_exchanger_eff     = config.getfloat('heat_exchanger', 'eff')
 
-        self.condensor_water_mfr = config.getfloat('condensor','water_mfr')
-        self.condensor_eff = config.getfloat('condensor','eff')
+        self.chiller_water_mfr      = config.getfloat('chiller', 'water_mfr')
+        self.chiller_eff            = config.getfloat('chiller', 'eff')
+        self.chiller_T_cold_in      = config.getfloat('chiller', 'T_cold_in')
+
+        self.condenser_water_mfr    = config.getfloat('condenser', 'water_mfr')
+        self.condenser_eff          = config.getfloat('condenser', 'eff')
+        self.condenser_T_cold_in    = config.getfloat('condenser', 'T_cold_in')
 
 class OutOps:
     """A configuration class to store output options."""
@@ -95,3 +98,4 @@ class OutOps:
         self.STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'STEADY_STATE_SOLUTION')
 
         self.TERMINAL_LOG = config.getboolean('TERMINAL', 'LOG')
+        self.TERMINAL_END_LOG_DETAIL = config.getboolean('TERMINAL', 'END_LOG_DETAIL')

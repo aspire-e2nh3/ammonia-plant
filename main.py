@@ -18,7 +18,8 @@ Criterion = 0.01
 
 # set reactor inlet temp
 reactor_in_temp = 673
-cool_water_temp = 273+3
+cool_water_temp = 273
+precool = 1
 
 # input mols of n2 and h2
 total_mol_N2 = 0.1   # mol
@@ -47,22 +48,34 @@ print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
 print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K\n')
 
 # compress N2 and H2 lines
-[Pipe_N2_HP, power_consumption["N2_comp"],heatlost1] = ptcompressor(Pipe_N2_LP, Reactor_Pressure, t_out=inlet_temp+200)
-[Pipe_H2_HP, power_consumption["H2_comp"],heatlost2] = ptcompressor(Pipe_H2_LP, Reactor_Pressure, t_out=inlet_temp+100)
+[Pipe_N2_HP, power_consumption["N2_comp"],heatlost1,n1] = ptcompressor(Pipe_N2_LP, Reactor_Pressure, t_out=inlet_temp+350)
+[Pipe_H2_HP, power_consumption["H2_comp"],heatlost2,n2] = ptcompressor(Pipe_H2_LP, Reactor_Pressure, t_out=inlet_temp+250)
 
 print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K\n')
 print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K\n')
+
+print('N2 Compressor Polytropic Index = %3.3f' % n1)
+print('H2 Compressor Polytropic Index = %3.3f' % n2)
 
 # mix H2 and N2 lines
 Pipe_IN = mixer(Pipe_H2_HP,Pipe_N2_HP)
 
 print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN.T, 'K\n')
 
-[Pipe_IN_cooled,power_consumption["inflow cooling"],effectiveness_prechill] = heat_exchanger_water2gas(Pipe_IN, cool_to_temp=inlet_temp)
+if precool == 1:
+    [Pipe_IN_cooled,power_consumption["inflow cooling"],effectiveness_prechill] = heat_exchanger_water2gas(Pipe_IN,
+                                                                                                           T_end=inlet_temp,
+                                                                                                           effectiveness=0.8,
+                                                                                                           cool_to_sat_point=False)
+else:
+    Pipe_IN_cooled = Pipe_IN
+    effectiveness_prechill = 0
 
 Pipe_RE = State(recycle_estimate*total_mol_H2,recycle_estimate*total_mol_N2, 0.5*total_mol_N2, inlet_temp-80, Reactor_Pressure-2)
 
 print(power_consumption)
+
+
 
 stop = 0
 count = 0
@@ -118,10 +131,12 @@ while (stop == 0):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (2b to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    [Pipe_2c,power_consumption["Chiller"],effectiveness_chiller] = heat_exchanger_water2gas(Pipe_2b, T_cin=cool_water_temp)
+    [Pipe_2c,power_consumption["Chiller"],effectiveness_chiller] = heat_exchanger_water2gas(Pipe_2b,
+                                                                                            T_cin=cool_water_temp,
+                                                                                            cool_to_sat_point=True)
     #print('\n')
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condenser ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    [Pipe_RE, ammonia_removed, power_consumption["Condenser"], condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=10, T_cin=cool_water_temp)
+    [Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=10, T_cin=cool_water_temp)
 
     print('%i, %1.4f' % (count, HTHE_DelT_resid))
     print()
@@ -131,48 +146,29 @@ while (stop == 0):
 
 print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
 # Mix recycle stream in
-print('prechill eff = %1.3f' % effectiveness_prechill)
-
 print('New Feed (cooled) = %3.1f' % Pipe_IN_cooled.T + ' K')
-
+print('    Prechill eff = %1.3f' % effectiveness_prechill)
 print('Recycle = %3.1f' % Pipe_RE.T + ' K')
-
-print('Mixed with Recycle = %3.1f' % Pipe_1a.T + ' K')
-
+print('    Mixed with Recycle = %3.1f' % Pipe_1a.T + ' K')
 # recompress recycled stream
-
 print('Recompressed = %3.1f' % Pipe_1b.T + ' K')
-
 # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
-
-print('Reheated stream = %3.1f' % Pipe_1c.T + ' K')
-
-print('heated to 663K stream = %3.1f' % Pipe_1d.T + ' K')
-
+print('Post heat exchanger stream = %3.1f' % Pipe_1c.T + ' K')
+print('Reheated stream = %3.1f' % Pipe_1d.T + ' K')
 print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_iterator.NH3 - Pipe_1c.NH3)/(2*Pipe_1c.N2)*100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
-
 print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
-
-print('   HTHE del T = %3.1f' % HTHE_DelT_new)
-
-print('   heat exchanger eff = %1.3f' % effectiveness_heatex)
-
+print('    HTHE del T = %3.1f' % HTHE_DelT_new)
+print('    heat exchanger eff = %1.3f' % effectiveness_heatex)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 print('Double cooled chiller outlet T = %3.1f' % Pipe_2c.T)
-
-print('   chiller eff = %1.3f' % effectiveness_chiller)
+print('    chiller eff = %1.3f' % effectiveness_chiller)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condensor ~~~~~~~~~~~~~~~~~~~~~~~~~~
 print('ammonia removed = %2.2f' % ((ammonia_removed)*100) + ' %')
-print('   initial ammonia molar = %1.3f' % Pipe_2c.yNH3)
-print('   recycle ammonia molar = %1.3f' % Pipe_RE.yNH3)
-print('   condenser water out temp = %3.1f' % condenser_water_out_temp)
-print('   condenser water out temp = %3.1f' % condenser_water_out_temp)
-
+print('    initial ammonia molar = %1.3f' % Pipe_2c.yNH3)
+print('    recycle ammonia molar = %1.3f' % Pipe_RE.yNH3)
+print('    condenser water out temp = %3.1f' % condenser_water_out_temp)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # reheat recycle stream? loosing too much energy rn
 print('Ammonia produced = %2.4f g/s' % float((Pipe_2c.mNH3-Pipe_RE.mNH3)*1e3))
@@ -210,6 +206,11 @@ if plot:
 
 
     plt.plot(x_plot_data,y_plot_data)
+
+    plt.title("Reactor Bed Temeprature Profile")
+    plt.xlabel("Position Along Length (m)")
+    plt.ylabel("Temperature (K)")
+
     plt.show()
 
 
