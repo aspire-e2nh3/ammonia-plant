@@ -12,7 +12,7 @@ import numpy as np
 pm.config['unit_energy'] = 'J'  # default for pyromat is kJ
 
 
-def sat_point_lookup(P_sat):
+def sat_point_temp_lookup(P_sat):
     # ammonia saturation point T(K), p(bar)
     data = [[2.3968597e+02, 2.4048963e+02, 2.4129599e+02, 2.4210506e+02, 2.4291683e+02, 2.4373133e+02, 2.4454856e+02,
              2.4536853e+02, 2.4619125e+02, 2.4701673e+02, 2.4784497e+02, 2.4867599e+02, 2.4950980e+02, 2.5034641e+02,
@@ -114,13 +114,34 @@ def sat_point_pressure_lookup(T_sat):
     return float(np.interp(T_sat, data[0],[10 * x for x in data[1]]))
 
 
-def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+def sat_point_lookup(f="sat_point_data.txt", T_sat=0, p_sat=0):
+    """
+    looks up saturation point from data stored in sat_point_data.txt or elsewhere
+    :param f: saturation data in form T,p as columns
+    :param T_sat: temperature to request partial pressure at
+    :param p_sat: pressure to request temperature at
+    :return:
+    """
+    with open(f,"r") as file:
+        data = [[float(y) for y in x.strip("\n").split(",")] for x in file.readlines()]
+    transposed_data = np.transpose(data)
+    if T_sat != 0:
+        return float(np.interp(T_sat, transposed_data[0], transposed_data[1]))
+    elif p_sat != 0:
+        return float(np.interp(p_sat, transposed_data[1], transposed_data[0]))
+    else:
+        return "Error: no interp value requested"
+
+
+def heat_exchanger_parallel(s1, s2, effectiveness=0.8):
     '''
     Heat exchanger: e-NTU form.
-    :param s1_out: state of hot stream input
-    :param s2_out: state of cold stream input
-    :param e1: efficiency?
-    :return:
+
+    :param  s1: state of hot stream input
+    :param  s2: state of cold stream input
+    :param  effectiveness: efficiency?
+
+    :return s1_out:
     '''
     s1.update_special()
     s2.update_special()
@@ -132,7 +153,7 @@ def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check
     # Cmax = max(s1.cp*s1.mass_tot, s2.cp*s2.mass_tot)
     # Cr = Cmin / Cmax
 
-    Q = e1 * (Cmin * (s1_out.T - s2_out.T))
+    Q = effectiveness * (Cmin * (s1_out.T - s2_out.T))
 
     s1_out.T += - Q / (s1_out.cp * s1_out.mass_tot)
     s2_out.T += Q / (s2_out.cp * s2_out.mass_tot)
@@ -143,22 +164,22 @@ def heat_exchanger_parallel(s1, s2, e1=0.8):  # mol,mol,mol,K,bar,K,m/s,mm check
     return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
 
-def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.75):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
-    '''
+def heat_exchanger_counter(s1, s2, effectiveness=0.75, set_cold_out=False, T2out=273):  # mol,mol,mol,K,bar,K,m/s,mm check units!!
+    """
     Heat exchanger: e-NTU form. defaults to eff =0.75 with no input
     :param s1: state of hot stream input
     :param s2: state of cold stream input
     :param T2out: desired temp of output stream
-    :param effectiveness: effectiveness (if set directly
+    :param effectiveness: effectiveness (if set directly)
     :return:
-    '''
+    """
     s1.update_special()
     s2.update_special()
 
     s1_out = copy.copy(s1)
     s2_out = copy.copy(s2)
 
-    if T2out == 0:
+    if set_cold_out:
         s2_out.T = effectiveness * s1.T + (1 - effectiveness) * s2.T
         s1_out.T = effectiveness * s2.T + (1 - effectiveness) * s1.T
     else:
@@ -173,33 +194,37 @@ def heat_exchanger_counter(s1, s2, T2out=0, effectiveness=0.75):  # mol,mol,mol,
     return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
-def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cin=10+273, Vmax=5, D=0.006, e=0):  # -,kg,K,m/s,m
-
+def heat_exchanger_water2gas(s, T_end=0, cool_to_sat_point=False, effectiveness=0, water_mfr=10,  T_cin=273, Vmax=5, D=0.006):  # -,kg,K,m/s,m
+    """
+    saturation
+    """
     s.update_special()
     s_out = copy.copy(s)
 
-    if cool_to_temp != 0:
-        T_sat = cool_to_temp
+    if cool_to_sat_point:
+        T_end = sat_point_lookup(p_sat=s_out.yNH3 * s_out.p)
+    elif T_end:
+        pass
     else:
-        T_sat = sat_point_lookup(s_out.yNH3 * s_out.p)
+        return "Error: unknown required cooling temp"
 
-    C_mix = s_out.cp * s_out.mass_tot  # J/kg/K * kg/s
+    C_mix = s.cp * s.mass_tot  # J/kg/K * kg/s
 
-    Q = C_mix * (s_out.T - T_sat)
+    Q = C_mix * (s.T - T_end)
 
-    C_cool = water_mass_flow * 4180  # 1 kg/s * 4.18 J/kg/K
+    C_cool = water_mfr * 4180  # 1 kg/s * 4.18 J/kg/K
 
     Cmin = min(C_cool, C_mix)
     Cmax = max(C_cool, C_mix)
     Cr = Cmin / Cmax
 
-    if e == 0:
-        e = Q / (Cmin * (s_out.T - T_cin))
+    if effectiveness == 0:
+        effectiveness = Q / (Cmin * (s_out.T - T_cin))
 
 
-    NTU = (1/(Cr-1)) * np.log((e - 1) / (Cr * e - 1))  #
+    NTU = (1/(Cr-1)) * np.log((effectiveness - 1) / (Cr * effectiveness - 1))  #
 
-    water_temp_out = T_cin + Q*e/(C_cool)
+    water_temp_out = T_cin + Q * effectiveness / (C_cool)
 
     U1 = 300  # W/m^2/K
 
@@ -213,13 +238,13 @@ def heat_exchanger_water2gas(s, water_mass_flow=10, cool_to_temp=0, T_cin=10+273
     F_fact = 0.316 * Re ** -0.25
     Del_P = F_fact * s_out.rho * Vmax ** 2 * l1 / 2 / D
 
-    s_out.T = T_sat
+    s_out.T = T_end
     s_out.p += - Del_P * 10 ** -5
     s_out.update()
-    return s_out, Q, e
+    return s_out, Q, effectiveness
 
 
-def condensor(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
+def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
 
     s.update_special()
     s_out = copy.deepcopy(s)
@@ -228,13 +253,13 @@ def condensor(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):  ### 
 
     C_mix = s_out.cp * s_out.mass_tot
 
-    C_cool = water_mass_flow * 4180  # 1 kg/s * 4180 J/kg/K
+    C_cool = water_mfr * 4180  # 1 kg/s * 4180 J/kg/K
 
     Cmin = min(C_cool, C_mix)
     Cmax = max(C_cool, C_mix)
     Cr = Cmin / Cmax
 
-    NTU = -np.log(1-e)
+    NTU = -np.log(1 - effectiveness)
 
     T_cout = s.T - (s.T - T_cin)*np.exp(-NTU)
 
@@ -256,7 +281,7 @@ def condensor(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):  ### 
     s_out.update()
     return s_out, X, Del_H_evap*X,T_cout
 
-def condenser_crude(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):
+def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
     initial_pp = s.p * s.yNH3
     C_cool = water_mass_flow * 4180  # 1 kg/s * 4180 J/kg/K
     T_cout = T_cin
@@ -266,7 +291,7 @@ def condenser_crude(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):
     criterion = 0.01
     stop = 0
     while stop == 0:
-        final_pp = sat_point_pressure_lookup(T_cout)
+        final_pp = sat_point_lookup(T_sat=T_cout)
         ammonia_removed = (1-final_pp/initial_pp)
 
 
@@ -285,11 +310,11 @@ def condenser_crude(s, e=0.8, water_mass_flow=1, T_cin=10+273, Vmax=5, D=0.006):
 
     power = C_cool * (T_cout - T_cin)
     s_out.update()
-    return s_out, ammonia_removed, power, T_cout
+    return s_out, power, ammonia_removed, T_cout
 
 
 def reactorStep(s, dX, area):  # mol/s, K, Pa
-    '''
+    """
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 
     :param  s: state class. Should include at least some NH3 or reaction will shoot up
@@ -297,7 +322,7 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
             area: area of reactor bed.
 
     :return s: state class
-    '''
+    """
 
     # initial concentrations
     T = s.T
@@ -349,14 +374,14 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
 
 
 def mixer(s1, s2):
-    '''
+    """
     Function to mix together two pipe streams into one.
     :param  s1: input state 1
             s2: input state 2
     :return s_out: output state, mixed, at lowest pressure
 
 
-    '''
+    """
     # Tav = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) \
     #       / (((s1.cp + s2.cp) / 2) * (s1.mass_tot + s2.mass_tot))
     Tav = (s1.T*s1.mass_tot + s2.T*s2.mass_tot)/(s1.mass_tot + s2.mass_tot)
