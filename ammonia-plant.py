@@ -220,7 +220,6 @@ def main():
                    Pipe_2c.store(),
                    Pipe_RE.store()]
 
-    
     stream_data = pd.DataFrame(stream_list,
                                columns = ['n2_mol_s',
                                           'h2_mol_s',
@@ -229,7 +228,20 @@ def main():
                                           'pressure'
                                           ]
                                )
-    power_data = pd.DataFrame.from_dict(power_consumption, orient='index', columns = ["run0"])
+
+    pipe_locs = ["IN", "1a", "1b", "1c", "2a", "2b", "2c", "RE"]
+    # stream_locs = ["Pipe_" + s for s in pipe_lables]
+    stream_data.insert(loc=0, column="pipe_locs", value=pipe_locs)
+
+    # preparing for multiple runs
+    n_runs = 1
+    run_headers = []
+    for i in range(n_runs):
+        run_headers.append(["run_%0.0f" % i])
+    print(run_headers)
+
+    power_data = pd.DataFrame.from_dict(power_consumption, orient='index',
+                                        columns = run_headers)
 
     if ops.TERMINAL_END_LOG_DETAIL:
         print('\n Stream data :')
