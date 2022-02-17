@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from isobaric_reactor import *
 import matplotlib.pyplot as plt
 import math
@@ -199,18 +200,6 @@ def main():
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print('power consumption = ', power_consumption)
-
-    if ops.TERMINAL_END_LOG_DETAIL:
-        print('\n Stream data :')
-
-        print(Pipe_IN.store())
-        print(Pipe_1a.store())
-        print(Pipe_1b.store())
-        print(Pipe_1c.store())
-        print(Pipe_2a.store())
-        print(Pipe_2b.store())
-        print(Pipe_2c.store())
-        print(Pipe_RE.store())
     
     if ops.REACTOR_BED:
             x_plot_data = bed1.vect
@@ -221,6 +210,32 @@ def main():
             plt.ylabel("Temperature (K)")
             plt.show()
     # print(bedvect)
+
+    stream_list = [Pipe_IN.store(),
+                   Pipe_1a.store(),
+                   Pipe_1b.store(),
+                   Pipe_1c.store(),
+                   Pipe_2a.store(),
+                   Pipe_2b.store(),
+                   Pipe_2c.store(),
+                   Pipe_RE.store()]
+
+    
+    stream_data = pd.DataFrame(stream_list,
+                               columns = ['n2_mol_s',
+                                          'h2_mol_s',
+                                          'nh3_mol_s',
+                                          'temperature',
+                                          'pressure'
+                                          ]
+                               )
+    power_data = pd.DataFrame.from_dict(power_consumption, orient='index', columns = ["run0"])
+
+    if ops.TERMINAL_END_LOG_DETAIL:
+        print('\n Stream data :')
+        print(stream_data)
+        print('\n Power data :')
+        print(power_data)
 
 
 if __name__ == "__main__":
