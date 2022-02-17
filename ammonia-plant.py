@@ -178,6 +178,7 @@ def main():
         print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_iterator.NH3 - Pipe_1c.NH3) / (
                     2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        print('exotherm = %3.3f J ' % ((Bed_iterator.NH3 - Pipe_1c.NH3)*46190))
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
         print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
         print('    HTHE del T = %3.1f' % HTHE_DelT_new)
