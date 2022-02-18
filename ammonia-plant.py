@@ -319,7 +319,7 @@ def main():
 
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_pressure'
-    rng = np.arange(200, 220, 10)
+    rng = np.arange(150, 220, 10)
 
     cfg, ops = get_configs(args)
 
