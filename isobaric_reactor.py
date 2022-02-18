@@ -290,6 +290,7 @@ def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
 
     criterion = 0.01
     stop = 0
+    count = 0
     while stop == 0:
         final_pp = sat_point_lookup(T_sat=T_cout)
         ammonia_removed = (1-final_pp/initial_pp)
