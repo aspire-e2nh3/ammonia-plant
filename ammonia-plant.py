@@ -183,6 +183,20 @@ def evaluate_loop(cfg, ops, id_run):
 
     Bed_data_T = np.array(Bed_data).T.tolist()
 
+
+    recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
+    recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
+    ammonia_produced = float(Pipe_2c.mNH3 - Pipe_RE.mNH3)
+
+    power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
+    power_consumption["recycle_ratio_mass"] = recycle_ratio_mass
+    power_consumption["ammonia_produced"] = ammonia_produced
+    power_consumption["ammonia_removed"] = ammonia_removed
+    power_consumption["n2_m_s"] = cfg.plant_n2
+    power_consumption["h2_m_s"] = cfg.plant_h2
+    power_consumption["reactor_e_total"] = power_consumption["recompressor"] + power_consumption["heater"]
+    power_consumption["reactor_cooling_total"] = power_consumption["Chiller"] + power_consumption["Condenser"]
+
     if ops.TERMINAL_LOG:
         print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
         # Mix recycle stream in
@@ -213,10 +227,9 @@ def evaluate_loop(cfg, ops, id_run):
         print('    condenser water out temp = %3.1f' % condenser_water_out_temp)
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # reheat recycle stream? loosing too much energy rn
-        print('Ammonia produced = %2.4f g/s' % float((Pipe_2c.mNH3 - Pipe_RE.mNH3) * 1e3))
+        print('Ammonia produced = %2.4f g/s' % ammonia_produced*1000)
 
-        recycle_ratio_mol = (Pipe_RE.mol_tot / Pipe_IN.mol_tot)
-        recycle_ratio_mass = (Pipe_RE.mass_tot / Pipe_IN.mass_tot)
+
         print('recycle ratio mass = %2.3f' % recycle_ratio_mass, ', recycle ratio mol = %2.3f' % recycle_ratio_mol)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -298,7 +311,7 @@ def multi_run(cfg, ops, param=None, vals=None):
     stream_indices = stream_temp.index
     power_indices = power_temp.index.values.tolist()
     power_data = pd.DataFrame(tps_lst(power_lst), index=power_indices, columns=run_headers)
-    n2_data = pd.DataFrame(tps_lst(n2_lst), index=stream_indices, columns=run_headers)
+    n2_data  = pd.DataFrame(tps_lst(n2_lst), index=stream_indices, columns=run_headers)
     h2_data = pd.DataFrame(tps_lst(h2_lst), index=stream_indices, columns=run_headers)
     nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
     temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
@@ -321,7 +334,7 @@ def main():
 
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_pressure'
-    rng = np.arange(200, 220, 10)
+    rng = np.arange(190, 220, 10)
 
     cfg, ops = get_configs(args)
 
