@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from isobaric_reactor import *
 import matplotlib.pyplot as plt
 import math
@@ -20,21 +21,42 @@ parser.add_argument(
 args = parser.parse_args()
 #  future would be to add output options file too
 
-def main():
-    """ Main to run the ammonia plant"""
-    
+def get_configs(args):
+    """Retrive config objects."""
+    default_steady_state = 'default_ssconfig.ini'
+    default_outputs = 'default_output_ops.ini'
+
     if args.configuration is None:
-        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_ssconfig.ini')
+        fcfg = os.path.join(os.path.dirname(__file__),
+                            'utils',
+                            default_steady_state)
     else:
         fcfg = args.configuration # pathname from input argument
     cfg = SSConfig(fcfg) # initialise
 
     if args.output is None:
-        fops = os.path.join(os.path.dirname(__file__),'utils','default_output_ops.ini')
+        fops = os.path.join(os.path.dirname(__file__),
+                            'utils',
+                            default_outputs)
     else:
         fops = args.output # pathname from input argument
-    ops = OutOps(fops) # initialise 
+    ops = OutOps(fops) # initialise
 
+    return cfg, ops
+
+def evaluate_loop(cfg, ops, id_run):
+    """Solve a single loop.
+    
+    :param cfg: config parser object with steady state configuration
+    :param ops: config parser object with output options configuration
+    
+    :return: stream_data - pandas dataframe of states throughout loop
+             power_data - pandas dataframe of power consumption
+    """
+
+    if ops.TERMINAL_LOG:
+        print("Log for run_%d" % id_run)
+    
     # initial inputs - define bed structure, quench ratio
     bed1 = Bed(cfg.reactor_length,
                cfg.reactor_diameter,
@@ -177,6 +199,7 @@ def main():
         print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_iterator.NH3 - Pipe_1c.NH3) / (
                     2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        print('exotherm = %3.3f J ' % ((Bed_iterator.NH3 - Pipe_1c.NH3)*46190))
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
         print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
         print('    HTHE del T = %3.1f' % HTHE_DelT_new)
@@ -199,18 +222,6 @@ def main():
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print('power consumption = ', power_consumption)
-
-    if ops.TERMINAL_END_LOG_DETAIL:
-        print('\n Stream data :')
-
-        print(Pipe_IN.store())
-        print(Pipe_1a.store())
-        print(Pipe_1b.store())
-        print(Pipe_1c.store())
-        print(Pipe_2a.store())
-        print(Pipe_2b.store())
-        print(Pipe_2c.store())
-        print(Pipe_RE.store())
     
     if ops.REACTOR_BED:
             x_plot_data = bed1.vect
@@ -221,6 +232,118 @@ def main():
             plt.ylabel("Temperature (K)")
             plt.show()
     # print(bedvect)
+
+    stream_list = [Pipe_IN.store(),
+                   Pipe_1a.store(),
+                   Pipe_1b.store(),
+                   Pipe_1c.store(),
+                   Pipe_2a.store(),
+                   Pipe_2b.store(),
+                   Pipe_2c.store(),
+                   Pipe_RE.store()]
+    pipe_locs = ["IN", "1a", "1b", "1c", "2a", "2b", "2c", "RE"]
+
+    stream_data = pd.DataFrame(stream_list,
+                               columns = ['n2_mol_s',
+                                          'h2_mol_s',
+                                          'nh3_mol_s',
+                                          'temperature',
+                                          'pressure'
+                                          ],
+                               index = pipe_locs
+                               )
+
+    power_data = pd.DataFrame.from_dict(power_consumption, orient='index',
+                                        columns = ["run_%d" % id_run])
+    
+    if ops.TERMINAL_END_LOG_DETAIL:
+            print('\nStream data for run_%d' % id_run)
+            print(stream_data)
+            print('\nPower data for run_%d' % id_run)
+            print(power_data)
+
+    return stream_data, power_data
+
+def multi_run(cfg, ops, param=None, vals=None):
+    """ """
+    # preparing for multiple runs
+    if vals is None or param is None:
+        n_runs = 1
+        rewrite_config = False
+    else:
+        n_runs = len(vals)
+        rewrite_config = True
+
+    run_headers = []
+    power_lst = []
+    n2_lst = []
+    h2_lst = []
+    nh3_lst = []
+    temperature_lst = []
+    pressure_lst =[]
+    
+    for i in range(n_runs):
+        if rewrite_config:
+            exec('cfg.'+param+' = %0.5f' % vals[i]) # this is bad practise I know
+            cfg.plant_n2 = cfg.plant_h2/cfg.plant_ratio_n # just incase selected parameter is h2; to maintain ratio
+        run_headers.append("run_%d" % i)
+        stream_temp, power_temp = evaluate_loop(cfg, ops, i)
+        power_lst.append(power_temp.iloc[:, 0].tolist())
+        n2_lst.append(stream_temp['n2_mol_s'].tolist())
+        h2_lst.append(stream_temp['h2_mol_s'].tolist())
+        nh3_lst.append(stream_temp['nh3_mol_s'].tolist())
+        temperature_lst.append(stream_temp['temperature'].tolist())
+        pressure_lst.append(stream_temp['pressure'].tolist())
+
+    stream_indices = stream_temp.index
+    power_indices = power_temp.index.values.tolist()
+    power_data = pd.DataFrame(tps_lst(power_lst), index=power_indices, columns=run_headers)
+    n2_data = pd.DataFrame(tps_lst(n2_lst), index=stream_indices, columns=run_headers)
+    h2_data = pd.DataFrame(tps_lst(h2_lst), index=stream_indices, columns=run_headers)
+    nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
+    temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
+    pressure_data = pd.DataFrame(tps_lst(pressure_lst), index=stream_indices, columns=run_headers)
+
+    return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
+
+def tps_lst(list_of_lists):
+    """"""
+    array = np.array(list_of_lists)
+    transpose = array.T
+    transpose_list = transpose.tolist()
+
+    return transpose_list
+
+def main():
+    """ Main to run the ammonia plant"""
+
+    # hardcoding param_sweep for now, will eventually be improved
+    chosen_param = 'plant_pressure'
+    rng = np.arange(150, 200, 10)
+
+    cfg, ops = get_configs(args)
+
+    power, n2, h2, nh3, temperature, pressure  = multi_run(cfg, ops, param=chosen_param, vals=rng)
+
+    # power has a unique set of indices, see the following print out as an example:
+    print('Output for power:')
+    print(power) # look at the index column to see what keys are valid (PSA, etc...)
+    
+    # n2, h2, nh3, temperature, pressure are separate DataFrames with the same indices.
+    # See the following print out as an example:
+    print('Output for a state variable:')
+    print(temperature) # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
+    
+
+    chosen_solution = "recompressor"
+    plt.figure
+    plt.plot(rng, power.loc[chosen_solution])
+    plt.xlabel(chosen_param)
+    plt.ylabel(chosen_solution)
+    plt.show()
+
+
+    # decide how to pass in the variables for multiple runs
 
 
 if __name__ == "__main__":
