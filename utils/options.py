@@ -39,10 +39,13 @@ class SSConfig:
         if file_name is not None:
             config.read(file_name)
 
-        self.plant_convergence     = config.getfloat('plant', 'convergence')
-        self.plant_pressure        = config.getfloat('plant', 'pressure')
-        self.plant_n2              = config.getfloat('plant', 'n2')
-        self.plant_h2              = config.getfloat('plant', 'h2')
+
+        plant = config["plant"]
+        self.plant_convergence      = plant.getfloat('convergence')
+        self.plant_pressure         = plant.getfloat('pressure')
+        self.plant_h2               = plant.getfloat('h2')
+        self.plant_ratio_n          = plant.getfloat('ratio_n')
+        self.plant_n2               = self.plant_h2/self.plant_ratio_n
 
         self.precooler_water_mfr    = config.getfloat('precooler', 'water_mfr')
         self.precooler_T_cold_in    = config.getfloat('precooler', 'T_cold_in')

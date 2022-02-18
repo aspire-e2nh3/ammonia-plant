@@ -50,7 +50,7 @@ def main():
     inlet_temp = cfg.reactor_T_IN
     HTHE_DelT = reactor_in_temp - inlet_temp
     HTHE_DelT_resid = 1
-    recycle_estimate = 6
+    recycle_estimate = 4
 
     #initialise power consumption dictionary
     power_consumption = {}
@@ -238,8 +238,65 @@ def main():
     n_runs = 1
     run_headers = []
     for i in range(n_runs):
-        run_headers.append(["run_%0.0f" % i])
-    print(run_headers)
+        if rewrite_config:
+            exec('cfg.'+param+' = %0.5f' % vals[i]) # this is bad practise I know
+            cfg.plant_n2 = cfg.plant_h2/cfg.plant_ratio_n # just incase selected parameter is h2; to maintain ratio
+        run_headers.append("run_%d" % i)
+        stream_temp, power_temp = evaluate_loop(cfg, ops, i)
+        power_lst.append(power_temp.iloc[:, 0].tolist())
+        n2_lst.append(stream_temp['n2_mol_s'].tolist())
+        h2_lst.append(stream_temp['h2_mol_s'].tolist())
+        nh3_lst.append(stream_temp['nh3_mol_s'].tolist())
+        temperature_lst.append(stream_temp['temperature'].tolist())
+        pressure_lst.append(stream_temp['pressure'].tolist())
+
+    stream_indices = stream_temp.index
+    power_indices = power_temp.index.values.tolist()
+    power_data = pd.DataFrame(tps_lst(power_lst), index=power_indices, columns=run_headers)
+    n2_data = pd.DataFrame(tps_lst(n2_lst), index=stream_indices, columns=run_headers)
+    h2_data = pd.DataFrame(tps_lst(h2_lst), index=stream_indices, columns=run_headers)
+    nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
+    temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
+    pressure_data = pd.DataFrame(tps_lst(pressure_lst), index=stream_indices, columns=run_headers)
+
+    return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
+
+def tps_lst(list_of_lists):
+    """"""
+    array = np.array(list_of_lists)
+    transpose = array.T
+    transpose_list = transpose.tolist()
+
+    return transpose_list
+
+def main():
+    """ Main to run the ammonia plant"""
+
+    # hardcoding param_sweep for now, will eventually be improved
+    chosen_param = 'plant_pressure'
+    rng = np.arange(150, 220, 10)
+
+    cfg, ops = get_configs(args)
+
+    power, n2, h2, nh3, temperature, pressure  = multi_run(cfg, ops, param=chosen_param, vals=rng)
+
+    # power has a unique set of indices, see the following print out as an example:
+    print('Output for power:')
+    print(power) # look at the index column to see what keys are valid (PSA, etc...)
+    
+    # n2, h2, nh3, temperature, pressure are separate DataFrames with the same indices.
+    # See the following print out as an example:
+    print('Output for a state variable:')
+    print(temperature) # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
+    
+
+    chosen_solution = "recompressor"
+    plt.figure
+    plt.plot(rng, power.loc[chosen_solution])
+    plt.xlabel(chosen_param)
+    plt.ylabel(chosen_solution)
+    plt.show()
+
 
     power_data = pd.DataFrame.from_dict(power_consumption, orient='index',
                                         columns = run_headers)
