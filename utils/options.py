@@ -46,7 +46,7 @@ class SSConfig:
         self.plant_convergence      = plant.getfloat('convergence')
         self.plant_pressure         = plant.getfloat('pressure')
         self.plant_h2               = plant.getfloat('h2')
-        self.plant_ratio_n          = plant.getfloat('h2')
+        self.plant_ratio_n          = plant.getfloat('ratio_n')
         self.plant_n2               = self.plant_h2/self.plant_ratio_n
 
         plant = config["plant"]

@@ -71,7 +71,7 @@ def evaluate_loop(cfg, ops, id_run):
     inlet_temp = cfg.reactor_T_IN
     HTHE_DelT = reactor_in_temp - inlet_temp
     HTHE_DelT_resid = 1
-    recycle_estimate = 6
+    recycle_estimate = 4
 
     #initialise power consumption dictionary
     power_consumption = {}
@@ -319,7 +319,7 @@ def main():
 
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_pressure'
-    rng = np.arange(150, 200, 10)
+    rng = np.arange(200, 220, 10)
 
     cfg, ops = get_configs(args)
 
