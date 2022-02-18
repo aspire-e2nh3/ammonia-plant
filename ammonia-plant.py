@@ -21,42 +21,21 @@ parser.add_argument(
 args = parser.parse_args()
 #  future would be to add output options file too
 
-def get_configs(args):
-    """Retrive config objects."""
-    default_steady_state = 'default_ssconfig.ini'
-    default_outputs = 'default_output_ops.ini'
-
+def main():
+    """ Main to run the ammonia plant"""
+    
     if args.configuration is None:
-        fcfg = os.path.join(os.path.dirname(__file__),
-                            'utils',
-                            default_steady_state)
+        fcfg = os.path.join(os.path.dirname(__file__),'utils','default_ssconfig.ini')
     else:
         fcfg = args.configuration # pathname from input argument
     cfg = SSConfig(fcfg) # initialise
 
     if args.output is None:
-        fops = os.path.join(os.path.dirname(__file__),
-                            'utils',
-                            default_outputs)
+        fops = os.path.join(os.path.dirname(__file__),'utils','default_output_ops.ini')
     else:
         fops = args.output # pathname from input argument
-    ops = OutOps(fops) # initialise
+    ops = OutOps(fops) # initialise 
 
-    return cfg, ops
-
-def evaluate_loop(cfg, ops, id_run):
-    """Solve a single loop.
-    
-    :param cfg: config parser object with steady state configuration
-    :param ops: config parser object with output options configuration
-    
-    :return: stream_data - pandas dataframe of states throughout loop
-             power_data - pandas dataframe of power consumption
-    """
-
-    if ops.TERMINAL_LOG:
-        print("Log for run_%d" % id_run)
-    
     # initial inputs - define bed structure, quench ratio
     bed1 = Bed(cfg.reactor_length,
                cfg.reactor_diameter,
@@ -241,7 +220,6 @@ def evaluate_loop(cfg, ops, id_run):
                    Pipe_2b.store(),
                    Pipe_2c.store(),
                    Pipe_RE.store()]
-    pipe_locs = ["IN", "1a", "1b", "1c", "2a", "2b", "2c", "RE"]
 
     stream_data = pd.DataFrame(stream_list,
                                columns = ['n2_mol_s',
@@ -249,39 +227,16 @@ def evaluate_loop(cfg, ops, id_run):
                                           'nh3_mol_s',
                                           'temperature',
                                           'pressure'
-                                          ],
-                               index = pipe_locs
+                                          ]
                                )
 
-    power_data = pd.DataFrame.from_dict(power_consumption, orient='index',
-                                        columns = ["run_%d" % id_run])
-    
-    if ops.TERMINAL_END_LOG_DETAIL:
-            print('\nStream data for run_%d' % id_run)
-            print(stream_data)
-            print('\nPower data for run_%d' % id_run)
-            print(power_data)
+    pipe_locs = ["IN", "1a", "1b", "1c", "2a", "2b", "2c", "RE"]
+    # stream_locs = ["Pipe_" + s for s in pipe_lables]
+    stream_data.insert(loc=0, column="pipe_locs", value=pipe_locs)
 
-    return stream_data, power_data
-
-def multi_run(cfg, ops, param=None, vals=None):
-    """ """
     # preparing for multiple runs
-    if vals is None or param is None:
-        n_runs = 1
-        rewrite_config = False
-    else:
-        n_runs = len(vals)
-        rewrite_config = True
-
+    n_runs = 1
     run_headers = []
-    power_lst = []
-    n2_lst = []
-    h2_lst = []
-    nh3_lst = []
-    temperature_lst = []
-    pressure_lst =[]
-    
     for i in range(n_runs):
         if rewrite_config:
             exec('cfg.'+param+' = %0.5f' % vals[i]) # this is bad practise I know
@@ -343,7 +298,14 @@ def main():
     plt.show()
 
 
-    # decide how to pass in the variables for multiple runs
+    power_data = pd.DataFrame.from_dict(power_consumption, orient='index',
+                                        columns = run_headers)
+
+    if ops.TERMINAL_END_LOG_DETAIL:
+        print('\n Stream data :')
+        print(stream_data)
+        print('\n Power data :')
+        print(power_data)
 
 
 if __name__ == "__main__":

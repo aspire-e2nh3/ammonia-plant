@@ -1,11 +1,8 @@
 '''
 This file will handle all interaction with the options configuration file.
 '''
-from genericpath import exists
 import os
 import configparser
-
-from numpy import empty
 
 class SSConfig:
     """
@@ -15,7 +12,7 @@ class SSConfig:
     # DEFAULTS: to be driven by a static .ini file stored in utils
 
     VALID_SECTIONS = ['plant', 'n2compressor', 'h2compressor', 'precooler', 'recompressor', 'reactor',
-                      'heater', 'heat_exchanger', 'chiller', 'condenser','param']
+                      'heater', 'heat_exchanger', 'chiller', 'condenser']
 
     #VALID = {'MINIMIZERS': VALID_MINIMIZERS,
     #         'FITTING': VALID_FITTING,
@@ -42,6 +39,7 @@ class SSConfig:
         if file_name is not None:
             config.read(file_name)
 
+
         plant = config["plant"]
         self.plant_convergence      = plant.getfloat('convergence')
         self.plant_pressure         = plant.getfloat('pressure')
@@ -49,7 +47,6 @@ class SSConfig:
         self.plant_ratio_n          = plant.getfloat('ratio_n')
         self.plant_n2               = self.plant_h2/self.plant_ratio_n
 
-        plant = config["plant"]
         self.precooler_water_mfr    = config.getfloat('precooler', 'water_mfr')
         self.precooler_T_cold_in    = config.getfloat('precooler', 'T_cold_in')
 
@@ -74,7 +71,6 @@ class SSConfig:
         self.condenser_water_mfr    = config.getfloat('condenser', 'water_mfr')
         self.condenser_eff          = config.getfloat('condenser', 'eff')
         self.condenser_T_cold_in    = config.getfloat('condenser', 'T_cold_in')
-
 
 class OutOps:
     """A configuration class to store output options."""
@@ -106,19 +102,3 @@ class OutOps:
 
         self.TERMINAL_LOG = config.getboolean('TERMINAL', 'LOG')
         self.TERMINAL_END_LOG_DETAIL = config.getboolean('TERMINAL', 'END_LOG_DETAIL')
-
-def read_list_of_floats(s):
-    """
-    Utility function to allow ranges to be read by the config parser
-
-    :param s: string to convert to a list
-    :type s: string
-
-    :return: list of floats
-    :rtype: list
-    """
-    if s[0] == '[' and s[-1] == ']':
-        lst = [float(item) for item in s[1:-1].split(",")]
-    else:
-        raise ValueError
-    return lst
