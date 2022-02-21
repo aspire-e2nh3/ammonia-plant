@@ -410,6 +410,7 @@ class Bed(object):
                         np.linspace(length / 100, length, 100).tolist()
 
         self.vectlen = len(self.vect)
+
     def mass(self,pressure=200, stress=148, sf=2, shell_density=7700, cat_density=7900):
         '''
         calculates weight from steel with stresss at 450C = 148MPa, sf=2, density = 7700 by default. cracking not modeled but could be in future
@@ -473,6 +474,8 @@ class State(object):
         mu_H2 = 8.411 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 97) / (self.T + 97)
         mu_NH3 = 0.919 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 370) / (self.T + 370)
         self.mu = self.yN2 * mu_N2 + self.yH2 * mu_H2 + self.yNH3 * mu_NH3
+
+        self.k = 0.2*self.yH2 + 0.028*self.yN2 + 0.026*self.yNH3
 
     def store(self):
         return [self.H2, self.N2, self.NH3, self.T, self.p]

@@ -176,9 +176,11 @@ def evaluate_loop(cfg, ops, id_run):
                                                                                                                water_mass_flow=cfg.condenser_water_mfr,
                                                                                                                T_cin=cfg.condenser_T_cold_in)
 
+        ammonia_produced = Pipe_2c.NH3 - Pipe_RE.NH3
+
         if ops.TERMINAL_LOG:
-            print('%i, %1.4f' % (count, HTHE_DelT_resid))
-        if HTHE_DelT_resid < cfg.plant_convergence:
+            print('%i, %1.6f' %(count,2*Pipe_IN.N2 - ammonia_produced))
+        if 2*Pipe_IN.N2 - ammonia_produced < cfg.plant_convergence:
             stop = 1
 
     Bed_data_T = np.array(Bed_data).T.tolist()
@@ -186,7 +188,7 @@ def evaluate_loop(cfg, ops, id_run):
 
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
-    ammonia_produced = float(Pipe_2c.mNH3 - Pipe_RE.mNH3)
+
 
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass
@@ -227,10 +229,11 @@ def evaluate_loop(cfg, ops, id_run):
         print('    condenser water out temp = %3.1f' % condenser_water_out_temp)
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # reheat recycle stream? loosing too much energy rn
-        print('Ammonia produced = %2.4f g/s' % ammonia_produced*1000)
+        print('Ammonia produced = %2.4f g/s' % (ammonia_produced*17.03))
 
 
-        print('recycle ratio mass = %2.3f' % recycle_ratio_mass, ', recycle ratio mol = %2.3f' % recycle_ratio_mol)
+        print('recycle ratio mass = %2.3f' % recycle_ratio_mass)
+        print('recycle ratio mol = %2.3f' % recycle_ratio_mol)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print('power consumption = ', power_consumption)
@@ -283,6 +286,7 @@ def multi_run(cfg, ops, param=None, vals=None):
     if vals is None or param is None:
         n_runs = 1
         rewrite_config = False
+        cfg.plant_n2 = cfg.plant_h2 / cfg.plant_ratio_n  # just incase selected parameter is h2; to maintain ratio
     else:
         n_runs = len(vals)
         rewrite_config = True
@@ -333,8 +337,8 @@ def main():
     """ Main to run the ammonia plant"""
 
     # hardcoding param_sweep for now, will eventually be improved
-    chosen_param = 'plant_pressure'
-    rng = np.arange(190, 220, 10)
+    chosen_param = 'plant_h2'
+    rng = np.linspace(0.06, 0.3, 10)
 
     cfg, ops = get_configs(args)
 
@@ -349,7 +353,7 @@ def main():
     print('Output for a state variable:')
     print(temperature)  # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
 
-    chosen_solution = "recompressor"
+    chosen_solution = "ammonia_produced"
     plt.figure
     plt.plot(rng, power.loc[chosen_solution])
     plt.xlabel(chosen_param)
