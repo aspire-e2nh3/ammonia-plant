@@ -1,4 +1,5 @@
-
+import numpy as np
+from isobaric_reactor import *
 #INPUT VARIABLES
 
 class Condenser_Details(object):
@@ -19,13 +20,18 @@ class Condenser_Details(object):
         self.mwn2 = 0.028 #molar weight of nitrogen [kg/mol]
         self.mwh2 = 0.02 #molar weight of hydrogen [kg/mol]
         '''
-        self.dhvap = 1200000 #average value for enthalpy of condensation [J/kg]
+        self.dhvap = 23370 #average value for enthalpy of condensation [J/mol]
         self.mcool = 0.3 #mass flow of coolant [kg/s]
         self.cpcool = 4186 #heat capacity of coolant [kg/s]
         self.Tcoolin = 273 #coolant inlet temp [K]
         self.rcool = 1000 #density of coolant [kg/m3]
         self.kcool = 0.6 #thermal conductivity of coolant [W/mK]
         self.vcool = 0.001 #dynamic viscosity of coolant [Pas]
+        self.velcool = self.mcool / (pie * (self.r3 ** 2 - self.r2 ** 2)) / self.numb
+        self.reycool = self.rcool * self.velcool * self.hyd / self.vcool
+        self.prcool = self.vcool * self.cpcool / self.kcool
+        self.nuscool = 0.023 * self.reycool ** 0.8 * self.prcool ** 0.4
+        self.htc2 = self.nuscool * self.kcool / self.hyd
         '''
         self.mnh3 = 0.00347 #mass flow of ammonia into condenser [kg/s]
         self.mh2 = 0.0198 #mass flow of hydrogen into condenser [kg/s]
@@ -59,30 +65,29 @@ class Condenser_Details(object):
 
 
 
+
+
 def tristan_condenser(s, c):
 
     #DECLARE ARRAYS
-    Tmix = np.array(10000)
-    Tcool = np.array(10000)
-    dq = np.array(10000)
-    savxnh3 = np.array(10000)
-    savnnh3 = np.array(10000)
+    Tmix = np.full(c.ix,s.T,float)
+    Tcool = np.full(c.ix,c.Tcoolin,float)
+    dq = np.full(c.ix,0,float)
+    savxnh3 = np.full(c.ix,0,float)
+    savnnh3 = np.full(c.ix,0,float)
     pie = 3.141592658
 
 
      #INITIALISING
-    Tmix[1] = s.T #set mixture inlet temperature for finite model
-    for ii in range(1, c.ix):
-        Tcool[ii] = c.Tcoolin #initial guess for coolant temperature along bed
-        ii += 1
     dx = c.Length / c.ix #length of finite segment [m]
     nnh3saved = 0 #initialise convergence variable for ammonia concentration
     Evalue = 0.0000001 #acceptable error in ammonia mole fraction
-    velcool = c.mcool / (pie * (c.r3 ** 2 - c.r2 ** 2)) / numb
+
 
 
     #MAIN COMPUTATIONAL LOOP
     j = 0
+    stop = False
     while stop == False:
         j += 1
         if j > c.jints:
@@ -93,94 +98,89 @@ def tristan_condenser(s, c):
         rstep = rstart
         minint = (1 - rstart) / rstep
         relax = min(rstart + j * rstep,1)
-
+        s_calc = copy.copy(s)
 
         #FORWARD PASS ON MIXTURE SIDE OF HEAT EXCHANGER
         nnh3 = s.NH3 #reset molar flow rate of ammonia at inlet [moles/s]
         xnh3 = s.yNH3
         dqsum = 0 #reset heat integration variable
 
-        #Determine if mixture temp low enough for condensation to take place
-        for ii in range(1, c.ix):
+
+        for ii in range(0, c.ix):
+            # Determine if mixture temp low enough for condensation to take place
             pnh3 = s.p * s.yNH3 #partial pressure of ammonia
-            Tsat = 239.69 * pnh3 ^ 0.0964 #determine saturation temperature of ammonia
-            if Tmix(ii) > Tsat:
+            Tsat = 239.69 * pnh3 ** 0.0964 #determine saturation temperature of ammonia
+            if Tmix[ii] > Tsat:
                 conact = 0 #mixture temp above sat temp so no condensation in this element
-            elif Tmix(ii) <= Tsat:
+            elif Tmix[ii] <= Tsat:
                 conact = 1 #mixture temp below or equal to sat temp so condensation occuring in this element
 
 
             #Use law of mixtures to calculate average fluid properties and overall heat transfer coefficient for an element
+            s.NH3 = nnh3
+            s.T = Tmix[ii]
+            s.update_fast()
 
-            #kmix = (s.NH3 * c.knh3 + s.H2 * c.kh2 + s.N2 * c.kn2) / s.mol_tot
-            #vmix = (s.NH3 * c.vnh3 + s.H2 * c.vh2 + s.N2 * c.vn2) / s.mol_tot
-            #rmix = (s.NH3 * c.rnh3 + s.H2 * c.rh2 + s.N2 * c.rn2) / s.mol_tot
-            cpmix = s.cp
-            velmix = (mnh3 / rnh3 + mn2 / rn2 + mh2 / rh2) / (numb * 2 * pie * r1 ^ 2)
-            reymix = rmix * 2 * r1 * velmix / vmix
-            prmix = vmix * cpmix / kmix
-            nusmix = 0.023 * reymix ^ 0.8 * prmix ^ 0.4
-            htc1 = nusmix * kmix / (2 * r1)
-            reycool = rcool * velcool * hyd / vcool
-            prcool = vcool * cpcool / kcool
-            nuscool = 0.023 * reycool ^ 0.8 * prcool ^ 0.4
-            htc2 = nuscool * kcool / hyd
-            Uval = 1 / (1 / (htc1 * r1 * 2 * pie * dx) + (Log(r2 / r1)) / (2 * pie * kval * dx) + 1 / (htc2 * r2 * 2 * pie * dx))
+            velmix = s.volume/ (c.numb * 2 * pie * c.r1 ** 2)
+            reymix = s.rho * 2 * c.r1 * velmix / s.mu
+            prmix = s.mu * s.cp / s.k
+            nusmix = 0.023 * reymix ** 0.8 * prmix ** 0.4
+            htc1 = nusmix * s.k / (2 * c.r1)
+
+
+            Uval = 1 / (1 / (htc1 * c.r1 * 2 * pie * dx) + np.log(c.r2 / c.r1) / (2 * pie * c.kval * dx) + 1 / (c.htc2 * c.r2 * 2 * pie * dx))
 
             #determine heat flow from mixture to coolant in that element
-            dq(ii) = Uval * (Tmix(ii) - Tcool(ii)) * numb * relax
-            dqsum = dqsum + dq(ii) #integrate total heat lost to coolant
+            dq[ii] = Uval * (Tmix[ii] - Tcool[ii]) * c.numb * relax
+            dqsum = dqsum + dq[ii] #integrate total heat lost to coolant
 
             #determine molar flow of nh3 lost due to condensation in each element
             nlost = 0
             kints = 100000
             losint = nnh3 / kints
             #increment condensation molar flow until sum of sensible heat reduction in gas + enthalpy of condensation equates to heat transferred out of element
-            For k = 1 To kints
+
+            qout = 0
+            # need to change to stop statement.
+            while qout<dq[ii]:
                 nlost = nlost + losint
-                dTdP = abar * bbar * (ptot * xnh3) ^ (bbar - 1)
-                dP = ptot * (xnh3 - (nnh3 - nlost) / (nnh3 - nlost + nn2 + nh2))
+                dTdP = c.abar * c.bbar * (s.p * xnh3) ** (c.bbar - 1)
+                dP = s.p * (xnh3 - (nnh3 - nlost) / (nnh3 - nlost + s.N2 + s.H2))
                 delT = dTdP * dP
-                qflow = (mn2 * cpn2 + mh2 * cph2 + nnh3 * mwnh3 * cpnh3) * delT
-                qout = qflow + conact * nlost * mwnh3 * dhvap
-                If qout > dq(ii) Then
-                    nnh3 = nnh3 - conact * nlost #reduce molar flow of gaseous ammonia as ammonia is condensed
-                    GoTo 11
-                End If
-            Next k
-            11
-            xnh3 = nnh3 / (nnh3 + nh2 + nn2) #determine new mole fraction of ammonia after condensation
-            savnnh3(ii) = nnh3
-            savxnh3(ii) = xnh3
+                qflow = (s.cp*s.mass_tot) * delT
+                qout = qflow + conact * nlost * c.dhvap
+
+            nnh3 = nnh3 - conact * nlost  # reduce molar flow of gaseous ammonia as ammonia is condensed
+            s.update_fast() #determine new mole fraction of ammonia after condensation
+            savnnh3[ii] = nnh3
+            savxnh3[ii] = xnh3
             #reduce temperature of mixture for next element based on heat lost from this element
-            Tmix(ii + 1) = Tmix(ii) - delT
-        Next i
+
+            Tmix[ii + 1] = Tmix[ii] - delT
 
         #COUNTER PASS ON COOLANT CHANNEL
-        Tcool(ix) = Tcoolin
-        For i = 1 To ix - 1 #loop to update coolant temperatures
-            Icon = ix - i
-            Tcool(Icon) = Tcool(Icon + 1) + dq(Icon) / (mcool * cpcool) #increase temp of coolant in line with heat flow from mixture
-        Next i
+        Tcool[c.ix] = c.Tcoolin
+        for ii in range(0, c.ix): #loop to update coolant temperatures
+            Icon = c.ix - ii
+            Tcool[Icon] = Tcool[Icon + 1] + dq[Icon] / (c.mcool * c.cpcool) #increase temp of coolant in line with heat flow from mixture
+
 
         #convergence check - has exit mole fraction changed from last main loop iteration
-        If Abs(nnh3 - nnh3saved) < Evalue And j > 2 * minint Then #if loop to check for convergence
-        GoTo 10
-        End If
+        if (abs(nnh3 - nnh3saved) < Evalue) & (j > 2 * minint): #if loop to check for convergence
+            stop = True
         nnh3saved = nnh3
-        ActiveSheet.Cells(j, 4) = j
-        ActiveSheet.Cells(j, 5) = nnh3
-    Next j
 
-    10
-
+    s.NH3 = nnh3
+    s.T = Tmix[c.ix]
+    s.update_fast()
     #CALCULATE PRESSURE DROP IN EACH CHANNEL
-    fricmix = 0.3164 * reymix ^ -0.25
-    delpmix = fricmix * rmix * velmix ^ 2 * Length / (2 * 2 * r1)
-    friccool = 0.3164 * reycool ^ -0.25
-    delpcool = friccool * rcool * velcool ^ 2 * Length / (2 * 2 * r1)
+    fricmix = 0.3164 * reymix ** -0.25
+    delpmix = fricmix * s.rho * velmix ** 2 * c.Length / (2 * 2 * c.r1)
+    friccool = 0.3164 * c.reycool ** -0.25
+    delpcool = friccool * c.rcool * c.velcool ** 2 * c.Length / (2 * 2 * c.r1)
 
     #PRINT SELECTED RESULTS TO SPREADSHEET
+    '''
     For i = 1 To ix
     ActiveSheet.Cells(i, 8) = i * dx
     ActiveSheet.Cells(i, 9) = Tmix(i)
@@ -205,9 +205,15 @@ def tristan_condenser(s, c):
     ActiveSheet.Cells(6, 2) = dqsum
     ActiveSheet.Cells(6, 3) = "W"
     ActiveSheet.Cells(7, 3) = "W"
-    Next i
-    End Sub
+    '''
+    return dqsum,delpmix
 
 def main():
-    cndsr_det = condensor_details()
+    cndsr_det = Condenser_Details()
+    state_det = State(1.5, 0.5, 0.2, 325, 200)
+    [dqsum,delpmix] = tristan_condenser(state_det,cndsr_det)
+    print(dqsum,delpmix)
 
+
+if __name__ == "__main__":
+    main()
