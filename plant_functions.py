@@ -442,28 +442,7 @@ def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
     return s_out, power, ammonia_removed, T_cout
 
 
-def BedBlock(s,b,log=False):
-    s_bed_temp = copy.copy(s)
-    exotherm_tot = 0
-    heat_loss_tot = 0
-    if log:
-        bed_data = [s_bed_temp.store()]
-    for X in range(b.vectlen - 1):
-        # setup new step
-        dX = b.vect[X + 1] - b.vect[X]
-        [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
-        if log:
-            bed_data.append(s_bed_temp.store())
-        exotherm_tot += exotherm
-        heat_loss_tot += b.htc * (s_bed_temp.T - b.surrounding_T) * dX * b.circum
-
-    if log:
-        return s_bed_temp,exotherm_tot,heat_loss_tot, bed_data
-    else:
-        return s_bed_temp,exotherm_tot,heat_loss_tot, False
-
-
-def reactorStep(s, dX, area):  # mol/s, K, Pa
+def reactor(s_in, b, log=False):  # mol/s, K, Pa
     """
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 
@@ -473,55 +452,75 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
 
     :return s: state class
     """
+    s = copy.copy(s_in)
+    exotherm_tot = 0
+    heat_loss_tot = 0
+    if log:
+        bed_data = [s.store()]
+    for X in range(b.vectlen - 1):
+        # setup new step
+        dX = b.vect[X + 1] - b.vect[X]
+        #[s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
 
     # initial concentrations
-    T = s.T
-    P = s.p
+        T = s.T
+        P = s.p
 
-    # activity coefficients for all species
-    N2fuga = 0.93431737 + 0.3101804 * 10 ** -3 * T + 0.295895 * 10 ** -3 * P - 0.270729 * 10 ** -6 * T ** 2 + \
-             0.4775207 * 10 ** -6 * P ** 2
-    H2fuga = math.exp(math.exp(-3.8402 * T ** 0.125 + 0.541) * P - math.exp(-0.1263 * T ** 0.5 - 15.980) * P ** 2 +
-                      300 * math.exp(-0.011901 * T - 5.941) * (math.exp(-P / 300) - 1))
-    NH3fuga = 0.1438996 + 0.2028538 * 10 ** -2 * T - 0.4487672 * 10 ** -3 * P - 0.1142945 * 10 ** -5 * T ** 2 + \
-              0.2761216 * 10 ** -6 * P ** 2
-    a_N2 = s.yN2 * N2fuga * P  # bar
-    a_H2 = s.yH2 * H2fuga * P  # bar
-    a_NH3 = s.yNH3 * NH3fuga * P  # bar
+        # activity coefficients for all species
+        N2fuga = 0.93431737 + 0.3101804 * 10 ** -3 * T + 0.295895 * 10 ** -3 * P - 0.270729 * 10 ** -6 * T ** 2 + \
+                 0.4775207 * 10 ** -6 * P ** 2
+        H2fuga = math.exp(math.exp(-3.8402 * T ** 0.125 + 0.541) * P - math.exp(-0.1263 * T ** 0.5 - 15.980) * P ** 2 +
+                          300 * math.exp(-0.011901 * T - 5.941) * (math.exp(-P / 300) - 1))
+        NH3fuga = 0.1438996 + 0.2028538 * 10 ** -2 * T - 0.4487672 * 10 ** -3 * P - 0.1142945 * 10 ** -5 * T ** 2 + \
+                  0.2761216 * 10 ** -6 * P ** 2
+        a_N2 = s.yN2 * N2fuga * P  # bar
+        a_H2 = s.yH2 * H2fuga * P  # bar
+        a_NH3 = s.yNH3 * NH3fuga * P  # bar
 
-    # reaction rate constant
-    Ea = 1.7056 * 10 ** 5  # J/mol
-    R = 8.31446261815324  # J/K/mol
-    k0 = 8.8490 * 10 ** 17  # mol/m^3
-    k_r = k0 * math.exp(-Ea / (R * T))  # mol/m^3/h
+        # reaction rate constant
+        Ea = 1.7056 * 10 ** 5  # J/mol
+        R = 8.31446261815324  # J/K/mol
+        k0 = 8.8490 * 10 ** 17  # mol/m^3
+        k_r = k0 * math.exp(-Ea / (R * T))  # mol/m^3/h
 
-    # equilibrium constant
-    K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
-                    + 2001.6 / T + 2.67899)
+        # equilibrium constant
+        K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
+                        + 2001.6 / T + 2.67899)
 
-    # Reaction Rate per unit volume
-    alpha = 0.5
-    RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
-                    - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
-    RR_N2 = -1 / 2 * RR_NH3
-    RR_H2 = -3 / 2 * RR_NH3
+        # Reaction Rate per unit volume
+        alpha = 0.5
+        RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
+                        - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
+        RR_N2 = -1 / 2 * RR_NH3
+        RR_H2 = -3 / 2 * RR_NH3
 
-    # Heat of Reaction
-    Del_H = 4.184 * (-(0.54526 + 846.609 / T + 459.734 * 10 ** 6 * T ** -3) * P - 5.34685 * T
-                     - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
+        # Heat of Reaction
+        Del_H = 4.184 * (-(0.54526 + 846.609 / T + 459.734 * 10 ** 6 * T ** -3) * P - 5.34685 * T
+                         - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
 
-    # change in molars
-    s.N2 += dX * RR_N2 * area
-    s.H2 += dX * RR_H2 * area
-    s.NH3 += dX * RR_NH3 * area
+        # change in molars
+        s.N2 += dX * RR_N2 * b.cs_area
+        s.H2 += dX * RR_H2 * b.cs_area
+        s.NH3 += dX * RR_NH3 * b.cs_area
 
-    # change in temp
-    exotherm = -dX * area * Del_H * RR_NH3
-    s.T += exotherm / (s.cp * s.mass_tot)
+        # change in temp
+        exotherm = -dX * b.cs_area * Del_H * RR_NH3
+        heat_loss = b.htc * (s.T - b.surrounding_T) * dX * b.circum
 
-    # update state
-    s.update_fast()
-    return s, exotherm
+
+        s.T += (exotherm-heat_loss) / (s.cp * s.mass_tot)
+
+        # update state
+        s.update_fast()
+        if log:
+            bed_data.append(s.store())
+        exotherm_tot += exotherm
+        heat_loss_tot += heat_loss
+
+    if log:
+        return s,exotherm_tot-heat_loss_tot, bed_data
+    else:
+        return s,exotherm_tot-heat_loss_tot, False
 
 
 def mixer(s1, s2):

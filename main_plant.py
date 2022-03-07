@@ -148,8 +148,8 @@ def evaluate_loop(cfg, ops, id_run):
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Bed_out,exotherm,heatloss_reac,Bed_data] = BedBlock(Pipe_1c,bed1)
-        #print(exotherm,heatloss_reac)
+        [Bed_out,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1c,bed1)
+
 
         Pipe_2a = copy.copy(Bed_out)
         Pipe_2a.p -= 2
@@ -201,8 +201,7 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["h2_m_s"] = cfg.plant_h2
     power_consumption["reactor_e_total"] = power_consumption["recompressor"] + power_consumption["heater"]
     power_consumption["reactor_cooling_total"] = power_consumption["Chiller"] + power_consumption["Condenser"]
-    power_consumption["heat_loss_reactor"] = heatloss_reac
-    power_consumption["exotherm"] = exotherm
+    power_consumption["exotherm_minus_heatloss"] = exotherm_minus_heatloss
 
     if ops.TERMINAL_LOG:
         print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
@@ -219,8 +218,7 @@ def evaluate_loop(cfg, ops, id_run):
         print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_out.NH3 - Pipe_1c.NH3) / (
                 2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_out.T + 'K')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        print('exotherm = %3.3f J ' % exotherm)
-        print('heatloss = %3.3f J ' % heatloss_reac)
+        print('exotherm minus heatloss = %3.3f W ' % exotherm_minus_heatloss)
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
         print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
         print('    HTHE del T = %3.1f' % HTHE_DelT_new)
