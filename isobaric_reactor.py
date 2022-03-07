@@ -41,8 +41,8 @@ def heat_exchanger_parallel(s1, s2, effectiveness=0.8):
 
     :return s1_out:
     '''
-    s1.update_special()
-    s2.update_special()
+    s1.update_fast()
+    s2.update_fast()
 
     s1_out = copy.copy(s1)
     s2_out = copy.copy(s2)
@@ -57,8 +57,8 @@ def heat_exchanger_parallel(s1, s2, effectiveness=0.8):
     s2_out.T += Q / (s2_out.cp * s2_out.mass_tot)
 
 
-    s1_out.update()
-    s2_out.update()
+    s1_out.update_fast()
+    s2_out.update_fast()
     return s1_out, s2_out, Q / (s2_out.cp * s2_out.mass_tot)
 
 
@@ -71,8 +71,8 @@ def heat_exchanger_counter(s1, s2, effectiveness=0.75, set_cold_out=False, T2out
     :param effectiveness: effectiveness (if set directly)
     :return:
     """
-    s1.update_special()
-    s2.update_special()
+    s1.update_fast()
+    s2.update_fast()
 
     s1_out = copy.copy(s1)
     s2_out = copy.copy(s2)
@@ -87,8 +87,8 @@ def heat_exchanger_counter(s1, s2, effectiveness=0.75, set_cold_out=False, T2out
 
     Q = s2.cp * s2.mass_tot * (s2.T - s2_out.T)
 
-    s1_out.update()
-    s2_out.update()
+    s1_out.update_fast()
+    s2_out.update_fast()
     return s1_out, s2_out, -(s2.T - s2_out.T), effectiveness
 
 
@@ -96,7 +96,7 @@ def heat_exchanger_water2gas(s, T_end=0, cool_to_sat_point=False, effectiveness=
     """
     saturation
     """
-    s.update_special()
+    s.update_fast()
     s_out = copy.copy(s)
 
     if cool_to_sat_point:
@@ -138,13 +138,13 @@ def heat_exchanger_water2gas(s, T_end=0, cool_to_sat_point=False, effectiveness=
 
     s_out.T = T_end
     s_out.p += - Del_P * 10 ** -5
-    s_out.update()
+    s_out.update_fast()
     return s_out, Q, effectiveness
 
 
 def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
 
-    s.update_special()
+    s.update_fast()
     s_out = copy.deepcopy(s)
 
     Del_H_evap = 22.7 * 1000 * s_out.NH3  # J/mol * mol
@@ -176,7 +176,7 @@ def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):
 
     s_out.p += - Del_P * 10 ** -5
     s_out.NH3 = s_out.NH3 * (1.00001-X)
-    s_out.update()
+    s_out.update_fast()
     return s_out, X, Del_H_evap*X,T_cout
 
 def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
@@ -208,9 +208,28 @@ def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
 
 
     power = C_cool * (T_cout - T_cin)
-    s_out.update()
+    s_out.update_fast()
     return s_out, power, ammonia_removed, T_cout
 
+def BedBlock(s,b,log=False):
+    s_bed_temp = copy.copy(s)
+    exotherm_tot = 0
+    heat_loss_tot = 0
+    if log:
+        bed_data = [s_bed_temp.store()]
+    for X in range(b.vectlen - 1):
+        # setup new step
+        dX = b.vect[X + 1] - b.vect[X]
+        [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
+        if log:
+            bed_data.append(s_bed_temp.store())
+        exotherm_tot += exotherm
+        heat_loss_tot += b.htc * (s_bed_temp.T - b.surrounding_T) * dX * b.circum
+
+    if log:
+        return s_bed_temp,exotherm_tot,heat_loss_tot, bed_data
+    else:
+        return s_bed_temp,exotherm_tot,heat_loss_tot,False
 
 def reactorStep(s, dX, area):  # mol/s, K, Pa
     """
@@ -248,7 +267,7 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
     K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
                     + 2001.6 / T + 2.67899)
 
-    # Reaction Rate
+    # Reaction Rate per unit volume
     alpha = 0.5
     RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
                     - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
@@ -265,11 +284,12 @@ def reactorStep(s, dX, area):  # mol/s, K, Pa
     s.NH3 += dX * RR_NH3 * area
 
     # change in temp
-    s.T += -dX * area * Del_H * RR_NH3 / (s.cp * s.mass_tot)
+    exotherm = -dX * area * Del_H * RR_NH3
+    s.T += exotherm / (s.cp * s.mass_tot)
 
     # update state
-    s.update()
-    return s
+    s.update_fast()
+    return s, exotherm
 
 
 def mixer(s1, s2):
@@ -290,7 +310,7 @@ def mixer(s1, s2):
 
     s_out.T = (s1.cp * s1.T * s1.mass_tot + s2.cp * s2.T * s2.mass_tot) / (s_out.cp * s_out.mass_tot)
 
-    s_out.update()
+    s_out.update_fast()
     return s_out
 
 
@@ -305,7 +325,7 @@ def compressor(s, p_out, t_out=0, eta=0.7):
     Outputs: OUTPUT - 5x1 list of [float], standard output of mol H2, mol N2, mol NH3, T[K] and p[bar]
              w - float, output
     """
-    s.update_special()
+    s.update_fast()
     s_out = copy.deepcopy(s)
 
     y = s_out.gamma
@@ -314,7 +334,7 @@ def compressor(s, p_out, t_out=0, eta=0.7):
     power = s.cp * s.mass_tot*s.T / eta * (r_p ** a - 1)
     s_out.T = s.T * (1 + r_p ** a / eta - 1 / eta)
     s_out.p = p_out
-    s_out.update()
+    s_out.update_fast()
     return s_out, power, 0
 
 def ptcompressor(s, p_out, t_out=0, eta=0.7):
@@ -332,7 +352,7 @@ def ptcompressor(s, p_out, t_out=0, eta=0.7):
     a = n/(n-1)
 
 
-    s.update_special()
+    s.update_fast()
     s_out = copy.deepcopy(s)
 
     y = s_out.gamma
@@ -341,7 +361,7 @@ def ptcompressor(s, p_out, t_out=0, eta=0.7):
     Q_out = s_out.mass_tot*R*a*(t_out - s_out.T) - s_out.mass_tot*s_out.cp*(t_out - s_out.T)
     s_out.T = t_out
     s_out.p = p_out
-    s_out.update()
+    s_out.update_fast()
     return s_out, power, Q_out, n
 
 
@@ -359,9 +379,6 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     [N2in, Tin, Pin] = [N2_mol,298,1]
     s_out = State(0, N2in, 0, Tin, Pin)
     [s_out,power,_,_] = ptcompressor(s_out,10,373)
-
-
-
     return s_out, power
 
 
@@ -387,7 +404,7 @@ def heater(s, T_end):
     s_out = copy.copy(s)
     power = s_out.cp * s_out.mass_tot * (T_end - s_out.T)
     s_out.T = T_end
-    s_out.update()
+    s_out.update_fast()
     return s_out, power
 
 
@@ -400,7 +417,10 @@ class Bed(object):
         self.length = length
         self.diam = diam
         self.r = diam/2
-        self.area = math.pi * self.r ** 2  # m^2
+        self.cs_area = math.pi * self.r ** 2  # m^2
+        self.circum = math.pi * self.r * 2
+        self.htc = 1
+        self.surrounding_T = 298
         # generate vect
         if not newvectmethod:
             self.vect = [0] + np.geomspace(mini, length / 10, divs, endpoint=False).tolist() + \
@@ -410,6 +430,7 @@ class Bed(object):
                         np.linspace(length / 100, length, 100).tolist()
 
         self.vectlen = len(self.vect)
+
     def mass(self,pressure=200, stress=148, sf=2, shell_density=7700, cat_density=7900):
         '''
         calculates weight from steel with stresss at 450C = 148MPa, sf=2, density = 7700 by default. cracking not modeled but could be in future
@@ -421,6 +442,7 @@ class Bed(object):
         shell_mass = shell_volume * shell_density
         cat_mass = cat_volume * cat_density
         return shell_mass,cat_mass
+
 
 class State(object):
     '''
@@ -439,40 +461,92 @@ class State(object):
         self.NH3 = NH3
         self.T = T
         self.p = p
-        self.update_special()
+        self.update_fast()
+
 
     def update(self):
         # masses of components in [kg]
         self.mH2 = self.H2 * 2.016 / 1000
         self.mN2 = self.N2 * 28.0134 / 1000
         self.mNH3 = self.NH3 * 17.03 / 1000
+
+        # tot mass
         self.mass_tot = self.mH2 + self.mN2 + self.mNH3
 
         # total mol
         self.mol_tot = self.H2 + self.N2 + self.NH3
+
         # mol
         self.yH2 = self.H2 / self.mol_tot
         self.yN2 = self.N2 / self.mol_tot
         self.yNH3 = self.NH3 / self.mol_tot
 
-        # cp [J/kg/K]
-        self.cp = float((pm.get('ig.N2').cp(self.T, self.p) * self.mN2 + pm.get('ig.H2').cp(self.T, self.p) * self.mH2 +
-                         pm.get('ig.NH3').cp(self.T, self.p) * self.mNH3) / self.mass_tot)
+        #mass frac
+        self.myH2 = self.mH2 / self.mass_tot
+        self.myN2 = self.mN2 / self.mass_tot
+        self.myNH3 = self.mNH3 / self.mass_tot
 
-    def update_special(self):
+    def update_fast(self):
         self.update()
-        # rho [kg/m^3]
-        self.rho = float(pm.get('ig.N2').d(self.T, self.p) * self.yN2 + pm.get('ig.H2').d(self.T, self.p) * self.yH2 + \
-                         pm.get('ig.NH3').d(self.T, self.p) * self.yNH3)
 
-        # gamma from addition of specific heats(1+ 1/sum of mol%/gamma)[-]
-        self.gamma = float((1 + 1 / ((self.yN2 / 0.4) + (self.yH2 / 0.4) + self.yNH3 / (pm.get('ig.NH3').gam(self.T, self.p) - 1))))
+        # cp [J/kg/K]
+        self.cp = self.myH2*14615 + self.myN2*1113 + self.myNH3*2600
+
+        # mu [Ns/m^2]
+        #self.mu = 0.000009 * self.myH2 + 0.000018 * self.myN2 + 0.00001 * self.myNH3
 
         # mu from sutherland's formula [Ns/m^2]
         mu_N2 = 1.663 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 107) / (self.T + 107)
         mu_H2 = 8.411 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 97) / (self.T + 97)
         mu_NH3 = 0.919 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 370) / (self.T + 370)
-        self.mu = self.yN2 * mu_N2 + self.yH2 * mu_H2 + self.yNH3 * mu_NH3
+        self.mu = self.myN2 * mu_N2 + self.myH2 * mu_H2 + self.myNH3 * mu_NH3
+
+        # k [W/K/m]
+        #self.k = 0.2 * self.yH2 + 0.028 * self.yN2 + 0.026 * self.yNH3
+
+        # laminar thermal conductivity from data from engineering toolbox [W/K/m]
+        self.k = (0.17 + (self.T - 250) * (0.24 - 0.17) / (400 - 250)) * self.myH2 + \
+                 (0.0311 + (self.T - 300) * (0.047 - 0.0311) / (600 - 300)) * self.myN2 + \
+                 (0.0334 + (self.T - 325) * (0.047 - 0.0311) / (725 - 325)) * self.myNH3
+
+        #rho [kg/m^3]
+        #self.rho = float(1/(self.yH2*(4126*self.T)/(self.p*1e5) + self.yN2*(297*self.T)/(self.p*1e5) + self.yNH3/pm.get('ig.NH3').d(self.T, self.p)))
+
+        self.rho = self.p*1e5 / ( self.myH2 *(4126 * self.T) +
+                               self.myN2 * (297 * self.T) +
+                               self.myNH3 * (297 * self.T))
+
+        #gamma [-]
+        self.gamma = (1 + 1 / (self.yN2 / 0.4 + self.yH2 / 0.4 + self.yNH3 / 0.31))
+
+        # volume [m^3
+        self.volume = self.mass_tot / self.rho
+
+
+    def update_slow(self):
+        self.update()
+
+        self.cp = float(pm.get('ig.N2').cp(self.T, self.p) * self.myN2 + pm.get('ig.H2').cp(self.T, self.p) * self.myH2 +
+                         pm.get('ig.NH3').cp(self.T, self.p) * self.myNH3)
+        # rho [kg/m^3]
+        self.rho = float( 1 / (self.myN2 / pm.get('ig.N2').d(self.T, self.p) +
+                               self.myH2 / pm.get('ig.H2').d(self.T, self.p) +
+                               self.myNH3 / pm.get('ig.NH3').d(self.T, self.p)))
+        # volume [m^3
+        self.volume = self.mass_tot/self.rho
+
+        # k from data from engineering toolbox [W/K/m]
+        self.k = (0.17 + (self.T-250)*(0.24-0.17)/(400-250)) * self.myH2 + \
+                 (0.0311 + (self.T-300)*(0.047-0.0311)/(600-300)) * self.myN2 + \
+                 (0.0334 + (self.T-325)*(0.047-0.0311)/(725-325)) * self.myNH3
+
+        # gamma from addition of specific heats(1+ 1/sum of mol%/gamma)[-]
+        self.gamma = float((1 + 1 / ((self.yN2 / 0.4) + (self.yH2 / 0.4) + self.yNH3 / (pm.get('ig.NH3').gam(self.T, self.p) - 1))))
+
+        mu_N2 = 1.663 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 107) / (self.T + 107)
+        mu_H2 = 8.411 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 97) / (self.T + 97)
+        mu_NH3 = 0.919 * 10 ** -5 * (self.T / 273) ** (3 / 2) * (273 + 370) / (self.T + 370)
+        self.mu = self.myN2 * mu_N2 + self.myH2 * mu_H2 + self.myNH3 * mu_NH3
 
     def store(self):
         return [self.H2, self.N2, self.NH3, self.T, self.p]

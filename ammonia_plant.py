@@ -8,6 +8,7 @@ import copy
 import pyromat as pm
 import argparse
 from utils.options import SSConfig, OutOps
+from tristan_condenser import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -100,11 +101,11 @@ def evaluate_loop(cfg, ops, id_run):
         print('catalyst weight = %3.3f' % cat_mass)
         print('N2 Compressor Polytropic Index = %3.3f' % n1)
         print('H2 Compressor Polytropic Index = %3.3f' % n2)
-        print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K\n')
-        print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K\n')
-        print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K\n')
-        print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K\n')
-        print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN_uncooled.T, 'K\n')
+        print('H2 LP Feed = %3.1f' % Pipe_H2_LP.T, 'K')
+        print('N2 LP Feed = %3.1f' % Pipe_N2_LP.T, 'K')
+        print('H2 HP Feed = %3.1f' % Pipe_H2_HP.T, 'K')
+        print('N2 HP Feed = %3.1f' % Pipe_N2_HP.T, 'K')
+        print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN_uncooled.T, 'K')
 
     [Pipe_IN, power_consumption["inflow cooling"], effectiveness_precooler] = heat_exchanger_water2gas(Pipe_IN_uncooled,
                                                                                                        T_end=cfg.reactor_T_IN,
@@ -120,6 +121,14 @@ def evaluate_loop(cfg, ops, id_run):
     while (stop == 0):
         count += 1
         # Mix recycle stream in
+
+
+        # relaxation factor on stream?
+
+
+
+
+
         Pipe_1a = mixer(Pipe_IN, Pipe_RE)
 
         # recompress recycled stream
@@ -133,24 +142,16 @@ def evaluate_loop(cfg, ops, id_run):
 
         [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c)
 
+
         # Initialise bed data
-        Bed_data = []
-        Bed_iterator = copy.copy(Pipe_1d)
-        Bed_data.append(Bed_iterator.store())
+
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        for X in range(bed1.vectlen - 1):
-            # setup new step
-            dX = bed1.vect[X + 1] - bed1.vect[X]
+        [Bed_out,exotherm,heatloss_reac,Bed_data] = BedBlock(Pipe_1c,bed1)
+        #print(exotherm,heatloss_reac)
 
-            # run reactor step
-            Bed_iterator = reactorStep(Bed_iterator, dX, bed1.area)
-
-            # store data
-            Bed_data.append(Bed_iterator.store())
-
-        Pipe_2a = copy.copy(Bed_iterator)
+        Pipe_2a = copy.copy(Bed_out)
         Pipe_2a.p -= 2
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -169,24 +170,28 @@ def evaluate_loop(cfg, ops, id_run):
         [Pipe_2c, power_consumption["Chiller"], effectiveness_chiller] = heat_exchanger_water2gas(Pipe_2b,
                                                                                                   T_cin=cfg.chiller_water_mfr,
                                                                                                   cool_to_sat_point=True)
-        # print(effectiveness_cool)
+        # print(effectiveness_chiller)
         # print('\n')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condenser ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        [Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c,
-                                                                                                               water_mass_flow=cfg.condenser_water_mfr,
-                                                                                                               T_cin=cfg.condenser_T_cold_in)
+        cndsr = Condenser_Details()
+
+        #[Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=cfg.condenser_water_mfr, T_cin=cfg.condenser_T_cold_in)
+
+        [Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = tristan_condenser(Pipe_2c,cndsr)
+
+        ammonia_produced = Pipe_2c.NH3 - Pipe_RE.NH3
 
         if ops.TERMINAL_LOG:
-            print('%i, %1.4f' % (count, HTHE_DelT_resid))
-        if HTHE_DelT_resid < cfg.plant_convergence:
+            print('%i, %1.6f' %(count,2*Pipe_IN.N2 - ammonia_produced))
+        if abs(2*Pipe_IN.N2 - ammonia_produced) < cfg.plant_convergence:
             stop = 1
 
-    Bed_data_T = np.array(Bed_data).T.tolist()
+
 
 
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
-    ammonia_produced = float(Pipe_2c.mNH3 - Pipe_RE.mNH3)
+
 
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass
@@ -196,6 +201,8 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["h2_m_s"] = cfg.plant_h2
     power_consumption["reactor_e_total"] = power_consumption["recompressor"] + power_consumption["heater"]
     power_consumption["reactor_cooling_total"] = power_consumption["Chiller"] + power_consumption["Condenser"]
+    power_consumption["heat_loss_reactor"] = heatloss_reac
+    power_consumption["exotherm"] = exotherm
 
     if ops.TERMINAL_LOG:
         print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
@@ -209,10 +216,11 @@ def evaluate_loop(cfg, ops, id_run):
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
         print('Post heat exchanger stream = %3.1f' % Pipe_1c.T + ' K')
         print('Reheated stream = %3.1f' % Pipe_1d.T + ' K')
-        print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_iterator.NH3 - Pipe_1c.NH3) / (
-                2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_iterator.T + 'K')
+        print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_out.NH3 - Pipe_1c.NH3) / (
+                2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_out.T + 'K')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        print('exotherm = %3.3f J ' % ((Bed_iterator.NH3 - Pipe_1c.NH3) * 46190))
+        print('exotherm = %3.3f J ' % exotherm)
+        print('heatloss = %3.3f J ' % heatloss_reac)
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
         print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
         print('    HTHE del T = %3.1f' % HTHE_DelT_new)
@@ -227,15 +235,18 @@ def evaluate_loop(cfg, ops, id_run):
         print('    condenser water out temp = %3.1f' % condenser_water_out_temp)
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Recycle ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # reheat recycle stream? loosing too much energy rn
-        print('Ammonia produced = %2.4f g/s' % ammonia_produced*1000)
+        print('Ammonia produced = %2.4f g/s' % (ammonia_produced*17.03))
 
 
-        print('recycle ratio mass = %2.3f' % recycle_ratio_mass, ', recycle ratio mol = %2.3f' % recycle_ratio_mol)
+        print('recycle ratio mass = %2.3f' % recycle_ratio_mass)
+        print('recycle ratio mol = %2.3f' % recycle_ratio_mol)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (pt 2?) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        print('power consumption = ', power_consumption)
+        # print('power consumption = ', power_consumption)
 
     if ops.REACTOR_BED:
+
+        Bed_data_T = np.array(Bed_data).T.tolist()
         x_plot_data = bed1.vect
         y_plot_data = Bed_data_T[3]
         plt.plot(x_plot_data, y_plot_data)
@@ -256,8 +267,8 @@ def evaluate_loop(cfg, ops, id_run):
     pipe_locs = ["IN", "1a", "1b", "1c", "2a", "2b", "2c", "RE"]
 
     stream_data = pd.DataFrame(stream_list,
-                               columns=['n2_mol_s',
-                                        'h2_mol_s',
+                               columns=['h2_mol_s',
+                                        'n2_mol_s',
                                         'nh3_mol_s',
                                         'temperature',
                                         'pressure'
@@ -283,6 +294,7 @@ def multi_run(cfg, ops, param=None, vals=None):
     if vals is None or param is None:
         n_runs = 1
         rewrite_config = False
+        cfg.plant_n2 = cfg.plant_h2 / cfg.plant_ratio_n  # just incase selected parameter is h2; to maintain ratio
     else:
         n_runs = len(vals)
         rewrite_config = True
@@ -302,8 +314,8 @@ def multi_run(cfg, ops, param=None, vals=None):
         run_headers.append("run_%d" % i)
         stream_temp, power_temp = evaluate_loop(cfg, ops, i)
         power_lst.append(power_temp.iloc[:, 0].tolist())
-        n2_lst.append(stream_temp['n2_mol_s'].tolist())
-        h2_lst.append(stream_temp['h2_mol_s'].tolist())
+        n2_lst.append(stream_temp['h2_mol_s'].tolist())
+        h2_lst.append(stream_temp['n2_mol_s'].tolist())
         nh3_lst.append(stream_temp['nh3_mol_s'].tolist())
         temperature_lst.append(stream_temp['temperature'].tolist())
         pressure_lst.append(stream_temp['pressure'].tolist())
@@ -333,8 +345,8 @@ def main():
     """ Main to run the ammonia plant"""
 
     # hardcoding param_sweep for now, will eventually be improved
-    chosen_param = 'plant_pressure'
-    rng = np.arange(190, 220, 10)
+    chosen_param = 'plant_h2'
+    rng = [0.3]
 
     cfg, ops = get_configs(args)
 
@@ -349,7 +361,7 @@ def main():
     print('Output for a state variable:')
     print(temperature)  # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
 
-    chosen_solution = "recompressor"
+    chosen_solution = "ammonia_produced"
     plt.figure
     plt.plot(rng, power.loc[chosen_solution])
     plt.xlabel(chosen_param)
@@ -358,6 +370,12 @@ def main():
 
     # decide how to pass in the variables for multiple runs
 
+def single_run():
+    cfg, ops = get_configs(args)
+    streamtemp,powertemp = evaluate_loop(cfg,ops,1)
+    print(streamtemp)
+    print(powertemp)
+
 
 if __name__ == "__main__":
-    main()
+    single_run()
