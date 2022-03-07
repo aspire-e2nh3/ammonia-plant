@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from isobaric_reactor import *
+from plant_functions import *
 import matplotlib.pyplot as plt
 import math
 import numpy as np

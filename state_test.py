@@ -1,6 +1,6 @@
 import time
 
-from isobaric_reactor import *
+from plant_functions import *
 #from tristan_condenser import *
 
 s = State(H2=1.8, N2=0.6, NH3=0.2, T=200, p=100)
