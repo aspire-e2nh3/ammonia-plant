@@ -148,8 +148,6 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
     Th = np.full(he.ix + 1, sh.T, float)
     Tc = np.full(he.ix + 1, sc.T, float)
     dq = np.full(he.ix, 0, float)
-    savxnh3 = np.full(he.ix, 0, float)
-    savnnh3 = np.full(he.ix, 0, float)
     pie = 3.141592658
     dx = he.Length / he.ix  # length of finite segment [m]
 
@@ -234,7 +232,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
     he_eff = (Tc[0] - Tc[he.ix])/(Th[0]-Tc[he.ix])
 
     #return(sh,sc,Th,Tc)
-    return sh, sc, he_eff
+    return sh, sc, dqsum, he_eff
 
 
 def tristan_condenser(s_in, c):
@@ -639,6 +637,11 @@ def heater(s, T_end):
     s_out.update_fast()
     return s_out, power
 
+def heater_power(s,P):
+    s_out = copy.copy(s)
+    s_out.T += P/(s_out.mass_tot * s_out.cp)
+    s_out.update_fast()
+    return s_out
 
 class Bed(object):
     '''
@@ -651,7 +654,7 @@ class Bed(object):
         self.r = diam/2
         self.cs_area = math.pi * self.r ** 2  # m^2
         self.circum = math.pi * self.r * 2
-        self.htc = 1
+        self.htc = 10
         self.surrounding_T = 298
         # generate vect
         if not newvectmethod:
@@ -746,7 +749,7 @@ class State(object):
 
         self.rho = self.p*1e5 / ( self.myH2 *(4126 * self.T) +
                                self.myN2 * (297 * self.T) +
-                               self.myNH3 * (297 * self.T))
+                               self.myNH3 * (488 * self.T))
 
         #gamma [-]
         self.gamma = (1 + 1 / (self.yN2 / 0.4 + self.yH2 / 0.4 + self.yNH3 / 0.31))
@@ -794,7 +797,7 @@ class State(object):
 
 class Condenser_Details(object):
 
-    def __init__(self):
+    def __init__(self,mass_flow=0.3):
         pie = 3.141592658
         self.r1 = 0.002 #inner rad of inner ammonia pipe [m]
         self.r2 = 0.003 #outer rad of inner pipe [m]
@@ -807,7 +810,7 @@ class Condenser_Details(object):
         self.kval = 16 #thermal conductivity of pipe [W/mK]
 
         self.dhvap = 23370 #average value for enthalpy of condensation [J/mol]
-        self.mcool = 0.3 #mass flow of coolant [kg/s]
+        self.mcool = mass_flow #mass flow of coolant [kg/s]
         self.cpcool = 4186 #heat capacity of coolant [kg/s]
         self.Tcoolin = 273 #coolant inlet temp [K]
         self.rcool = 1000 #density of coolant [kg/m3]

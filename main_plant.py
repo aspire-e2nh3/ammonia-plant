@@ -139,8 +139,9 @@ def evaluate_loop(cfg, ops, id_run):
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
         Pipe_1c = copy.copy(Pipe_1b)
         Pipe_1c.T += HTHE_DelT
+        Pipe_1c.update_fast()
 
-        [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c)
+        [Pipe_1d, power_consumption["heater"]] = heater_power(Pipe_1c, HTHE_P)
 
 
         # Initialise bed data
@@ -148,23 +149,21 @@ def evaluate_loop(cfg, ops, id_run):
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Bed_out,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1c,bed1)
+        [Pipe_2a,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1c,bed1,ops.REACTOR_BED)
 
-
-        Pipe_2a = copy.copy(Bed_out)
         Pipe_2a.p -= 2
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         # estimate heat exchange variant
-        [Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heatex] = heat_exchanger_counter(Pipe_2a,
-                                                                                              Pipe_1b,
-                                                                                              T2out=cfg.reactor_T_1c)
-        # print(effectiveness_heex)
-        HTHE_DelT_resid = abs(HTHE_DelT - HTHE_DelT_new)
 
-        HTHE_DelT = HTHE_DelT_new
+        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, effectiveness_heatex] = tristan_heat_exchanger(Pipe_2a,Pipe_1b, Heat_Exchanger_Details())
 
+        #[Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heatex] = heat_exchanger_counter(Pipe_2a, Pipe_1b, T2out=cfg.reactor_T_1c)
+        HTHE_DelT_resid = abs(HTHE_P - HTHE_P_new)
+        HTHE_P = HTHE_P_new
+
+        print(f'HE eff = {effectiveness_heatex:0.4f}')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         [Pipe_2c, power_consumption["Chiller"], effectiveness_chiller] = heat_exchanger_water2gas(Pipe_2b,
@@ -173,18 +172,29 @@ def evaluate_loop(cfg, ops, id_run):
         # print(effectiveness_chiller)
         # print('\n')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Condenser ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        cndsr = Condenser_Details()
+
 
         #[Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=cfg.condenser_water_mfr, T_cin=cfg.condenser_T_cold_in)
 
-        [Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = tristan_condenser(Pipe_2c,cndsr)
+        [Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = tristan_condenser(Pipe_2c,Condenser_Details())
+
+
 
         ammonia_produced = Pipe_2c.NH3 - Pipe_RE.NH3
 
+
+        #set up purge stream if non-converging
+        if Pipe_RE.mol_tot > 10:
+            k = 10/Pipe_RE.mol_tot
+            [Pipe_RE,Pipe_purged] = Pipe_RE.split(k)
+            print(Pipe_purged.mol_tot)
+            stop = 1
+
         if ops.TERMINAL_LOG:
-            print('%i, %1.6f' %(count,2*Pipe_IN.N2 - ammonia_produced))
+            print(' i: %i, convergence: %1.6f' %(count,2*Pipe_IN.N2 - ammonia_produced))
         if abs(2*Pipe_IN.N2 - ammonia_produced) < cfg.plant_convergence:
             stop = 1
+
 
 
 
@@ -215,8 +225,8 @@ def evaluate_loop(cfg, ops, id_run):
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
         print('Post heat exchanger stream = %3.1f' % Pipe_1c.T + ' K')
         print('Reheated stream = %3.1f' % Pipe_1d.T + ' K')
-        print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Bed_out.NH3 - Pipe_1c.NH3) / (
-                2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Bed_out.T + 'K')
+        print('Bed 1 length = %2.2fm, conversion = %2.2f' % (bed1.vect[-1], (Pipe_2a.NH3 - Pipe_1c.NH3) / (
+                2 * Pipe_1c.N2) * 100) + '%' + ', T = %3.1f' % Pipe_2a.T + 'K')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print('exotherm minus heatloss = %3.3f W ' % exotherm_minus_heatloss)
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
@@ -344,7 +354,7 @@ def main():
 
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_h2'
-    rng = [0.3]
+    rng = np.linspace(0.15,0.3,2)
 
     cfg, ops = get_configs(args)
 
@@ -359,11 +369,13 @@ def main():
     print('Output for a state variable:')
     print(temperature)  # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
 
-    chosen_solution = "ammonia_produced"
+    chosen_solution = "reactor_cooling_total"
     plt.figure
     plt.plot(rng, power.loc[chosen_solution])
     plt.xlabel(chosen_param)
     plt.ylabel(chosen_solution)
+    plt.xlim(0,0.3)
+    plt.ylim(0,15000)
     plt.show()
 
     # decide how to pass in the variables for multiple runs
