@@ -19,7 +19,7 @@ def heat_exchanger_test():
     he_det = Heat_Exchanger_Details()
     sh_det = State(1.6, 0.5, 0.25, 770, 200)
     sc_det = State(1.9, 0.6, 0.05, 290, 200)
-    [sh_out,sc_out,sh_data,sc_data] = tristan_heat_exchanger(sh_det,sc_det,he_det)
+    [sh_out,sc_out,sh_data,sc_data] = tristan_heat_exchanger(sh_det, sc_det, he_det, last_HE_run=1)
     plt.plot(np.linspace(0, 1,he_det.ix+1), sh_data-273)
     plt.plot(np.linspace(0, 1,he_det.ix+1), sc_data-273)
     plt.plot()

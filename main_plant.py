@@ -65,17 +65,18 @@ def evaluate_loop(cfg, ops, id_run):
     bed1 = Bed(cfg.reactor_length,
                cfg.reactor_diameter,
                cfg.reactor_minimum_step,
-               False)
+               True)
     shell_mass, cat_mass = bed1.mass()
+
 
     # set reactor inlet temp
     reactor_in_temp = cfg.reactor_T_1c
 
     # initialise iteration limits
     inlet_temp = cfg.reactor_T_IN
-    HTHE_DelT = reactor_in_temp - inlet_temp
-    HTHE_DelT_resid = 1
-    recycle_estimate = 4
+    HTHE_P = 27000 * cfg.plant_h2/0.3
+
+    recycle_estimate = 6
 
     # initialise power consumption dictionary
     power_consumption = {}
@@ -118,6 +119,8 @@ def evaluate_loop(cfg, ops, id_run):
                     cfg.plant_pressure - 2)
     count = 0
     stop = 0
+    he_det = Heat_Exchanger_Details()
+
     while (stop == 0):
         count += 1
         # Mix recycle stream in
@@ -137,27 +140,30 @@ def evaluate_loop(cfg, ops, id_run):
                                                                      eta=cfg.recompressor_eta)
 
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
-        Pipe_1c = copy.copy(Pipe_1b)
-        Pipe_1c.T += HTHE_DelT
-        Pipe_1c.update_fast()
+        Pipe_1c = heater_power(Pipe_1b,HTHE_P)
 
-        [Pipe_1d, power_consumption["heater"]] = heater_power(Pipe_1c, HTHE_P)
+        # plan: make this a quench system/heater, iterate to find f which allows T inlet to be
+        [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c, no_cooling=False)
 
-
+        #Pipe_1d = copy.copy(Pipe_1c)
+        #power_consumption["heater"] = 0
+        print(Pipe_1d.T)
         # Initialise bed data
 
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Pipe_2a,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1c,bed1,ops.REACTOR_BED)
-
+        [Pipe_2a,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1d,bed1,ops.REACTOR_BED)
+        print(Pipe_2a.T)
         Pipe_2a.p -= 2
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         # estimate heat exchange variant
 
-        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, effectiveness_heatex] = tristan_heat_exchanger(Pipe_2a,Pipe_1b, Heat_Exchanger_Details())
+        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, he_det] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, he_det)
+        effectiveness_heatex = he_det.last_run_eff
+
 
         #[Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heatex] = heat_exchanger_counter(Pipe_2a, Pipe_1b, T2out=cfg.reactor_T_1c)
         HTHE_DelT_resid = abs(HTHE_P - HTHE_P_new)
@@ -209,8 +215,8 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["ammonia_removed"] = ammonia_removed
     power_consumption["n2_m_s"] = cfg.plant_n2
     power_consumption["h2_m_s"] = cfg.plant_h2
-    power_consumption["reactor_e_total"] = power_consumption["recompressor"] + power_consumption["heater"]
-    power_consumption["reactor_cooling_total"] = power_consumption["Chiller"] + power_consumption["Condenser"]
+    power_consumption["reactor_e_total"] = power_consumption["recompressor"] + max(power_consumption["heater"],0)
+    power_consumption["reactor_cooling_total"] = power_consumption["Chiller"] + power_consumption["Condenser"] + min(power_consumption["heater"],0)
     power_consumption["exotherm_minus_heatloss"] = exotherm_minus_heatloss
 
     if ops.TERMINAL_LOG:
@@ -231,7 +237,7 @@ def evaluate_loop(cfg, ops, id_run):
         print('exotherm minus heatloss = %3.3f W ' % exotherm_minus_heatloss)
         print('Immediately post reactor = %3.1f' % Pipe_2a.T + ' K')
         print('Single cooled post reactor = %3.1f' % Pipe_2b.T + ' K')
-        print('    HTHE del T = %3.1f' % HTHE_DelT_new)
+        print('    HTHE P = %3.1f' % HTHE_P)
         print('    heat exchanger eff = %1.3f' % effectiveness_heatex)
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print('Double cooled chiller outlet T = %3.1f' % Pipe_2c.T)
@@ -261,7 +267,7 @@ def evaluate_loop(cfg, ops, id_run):
         plt.title("Reactor Bed Temeprature Profile")
         plt.xlabel("Position Along Length (m)")
         plt.ylabel("Temperature (K)")
-        plt.show()
+
     # print(bedvect)
 
     stream_list = [Pipe_IN.store(),
@@ -385,6 +391,7 @@ def single_run():
     streamtemp,powertemp = evaluate_loop(cfg,ops,1)
     print(streamtemp)
     print(powertemp)
+    plt.show()
 
 
 if __name__ == "__main__":
