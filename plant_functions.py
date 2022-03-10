@@ -146,7 +146,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
     sh = copy.copy(sh_in)
     sc = copy.copy(sc_in)
     dq = np.full(he.ix, 0, float)
-    Evalue = 0.0001
+
     dqsumsaved = 0
     if he.last_run_bool:
         Th = np.linspace(sh.T, sh.T - he.last_run_eff*(sh.T - sc.T), he.ix+1)
@@ -210,7 +210,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             htc_h = nus_h * sh.k / (2 * he.r1)
 
             vel_c = sc.volume_fr / (he.numb * pie * (he.r3 ** 2 - he.r2 ** 2))
-            rey_c = sc.rho * 2 * he.hyd * vel_c / sh.mu
+            rey_c = sc.rho * 2 * he.hyd * vel_c / sc.mu
             pr_c = sc.mu * sc.cp / sc.k
             nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
             htc_c = nus_c * sc.k / he.hyd
@@ -235,7 +235,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             Tc[Icon-1] = Tc[Icon] + dq[Icon-1] / (sc.cp*sc.mass_tot) #increase temp of coolant in line with heat flow from mixture
 
         #convergence check - has exit mole fraction changed from last main loop iteration
-        if (abs(dqsum - dqsumsaved) < Evalue) & (j > miniter): #if loop to check for convergence
+        if (abs(dqsum - dqsumsaved) < he.eval) & (j > miniter): #if loop to check for convergence
             stop = True
         dqsumsaved = dqsum
         #print(j, end=' ')
@@ -266,7 +266,7 @@ def tristan_condenser(s_in, c):
      #INITIALISING
     dx = c.Length / c.ix #length of finite segment [m]
     NH3saved = 0 #initialise convergence variable for ammonia concentration
-    Evalue = 0.0001 #acceptable error in ammonia mole fraction
+
 
     rstart = 0.1  # RELAX FACTOR =0.1 seems to work well
     rstep = rstart
@@ -290,7 +290,7 @@ def tristan_condenser(s_in, c):
         #FORWARD PASS ON MIXTURE SIDE OF HEAT EXCHANGER
 
         dqsum = 0 #reset heat integration variable
-
+        qflowsum = 0
 
         for ii in range(0, c.ix):
 
@@ -341,6 +341,8 @@ def tristan_condenser(s_in, c):
                 qflow = (s.cp*s.mass_tot) * delT
                 qout = qflow + conact * nlost * c.dhvap
 
+
+            qflowsum += qflow
             s.NH3 -= conact * nlost  # reduce molar flow of gaseous ammonia as ammonia is condensed
             s.update()
 
@@ -359,7 +361,7 @@ def tristan_condenser(s_in, c):
 
 
         #convergence check - has exit mole fraction changed from last main loop iteration
-        if (abs(s.NH3 - NH3saved) < Evalue) & (j > minint): #if loop to check for convergence
+        if (abs(s.NH3 - NH3saved) < c.eval) & (j > minint): #if loop to check for convergence
             stop = True
         NH3saved = s.NH3
 
@@ -368,7 +370,6 @@ def tristan_condenser(s_in, c):
         #    print('\n', end=' ')
 
     #print('\n', end=' ')
-    Pcooling = c.cpcool*(Tcool[0] - Tcool[c.ix])*c.mcool
     #CALCULATE PRESSURE DROP IN EACH CHANNEL
     fricmix = 0.3164 * reymix ** -0.25
     delpmix = fricmix * s.rho * velmix ** 2 * c.Length / (2 * 2 * c.r1)
@@ -382,7 +383,7 @@ def tristan_condenser(s_in, c):
 
 
     #return Tmix,Tcool,savnnh3,s,delpmix,delpcool,dqsum
-    return s,Pcooling,Tcool[0]
+    return s,dqsum,Tcool[0]
 
 
 def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
@@ -469,8 +470,8 @@ def reactor(s_in, b, log=False):  # mol/s, K, Pa
     s = copy.copy(s_in)
     exotherm_tot = 0
     heat_loss_tot = 0
-    if log:
-        bed_data = [s.store()]
+    bed_data = [s.store()]
+
     for X in range(b.vectlen - 1):
         # setup new step
         dX = b.vect[X + 1] - b.vect[X]
@@ -519,22 +520,30 @@ def reactor(s_in, b, log=False):  # mol/s, K, Pa
 
         # change in temp
         exotherm = -dX * b.cs_area * Del_H * RR_NH3
-        heat_loss = b.htc * (s.T - b.surrounding_T) * dX * b.circum
 
+        vel = s.volume_fr / b.cs_area
+        rey = s.rho * 2 * b.r * vel / s.mu
+        pr = s.mu * s.cp / s.k
+        nus = 0.023 * rey ** 0.8 * pr ** 0.4
+        htc = nus * s.k / b.r
+
+        Uval = dX / (1 / (htc * b.in_circum)
+                    + np.log((b.r + b.thickness) / b.r) / (2 * np.pi * b.shell_kval)
+                    + np.log((b.r + b.thickness + b.insul_thickness) / (b.r + b.thickness)) / (2 * np.pi * b.insul_kval)
+                    + 1 / (b.external_htc * b.out_circum))
+
+        heat_loss = Uval * (s.T - b.surrounding_T)
 
         s.T += (exotherm-heat_loss) / (s.cp * s.mass_tot)
 
         # update state
         s.update_fast()
-        if log:
-            bed_data.append(s.store())
+
+        bed_data.append(s.store())
         exotherm_tot += exotherm
         heat_loss_tot += heat_loss
+    return s,exotherm_tot,heat_loss_tot, bed_data
 
-    if log:
-        return s,exotherm_tot-heat_loss_tot, bed_data
-    else:
-        return s,exotherm_tot-heat_loss_tot, False
 
 
 def mixer(s1, s2):
@@ -671,8 +680,7 @@ class Bed(object):
         self.diam = diam
         self.r = diam/2
         self.cs_area = math.pi * self.r ** 2  # m^2
-        self.circum = math.pi * self.r * 2
-        self.htc = 10
+        self.in_circum = math.pi * self.r * 2
         self.surrounding_T = 298
         # generate vect
 
@@ -689,22 +697,16 @@ class Bed(object):
         self.cat_density = 7900/2
         self.stress = self.strength * 10 ** 6 / self.sf
         self.thickness = self.pressure * 10 ** 5 * self.r / self.stress
+        self.OD = diam + self.thickness * 2
+        self.out_circum = math.pi * self.OD
         self.shell_volume = self.thickness * math.pi * (self.length * 2 * self.r + self.r ** 2 * 4 / 3)
         self.cat_volume = self.r ** 2 * self.length * math.pi
         self.shell_mass = self.shell_volume * self.shell_density
         self.cat_mass = self.cat_volume * self.cat_density
-
-    def mass(self,pressure=200, strength=148, sf=2, shell_density=7700, cat_density=7900):
-        '''
-        calculates weight from steel with stresss at 450C = 148MPa, sf=2, density = 7700 by default. cracking not modeled but could be in future
-        '''
-        self.stress = strength*10**6/sf
-        self.thickness = pressure*10**5*self.r/self.stress
-        self.shell_volume = self.thickness * math.pi * (self.length * 2 * self.r + self.r ** 2 * 4 / 3)
-        self.cat_volume = self.r**2*self.length*math.pi
-        self.shell_mass = self.shell_volume * shell_density
-        self.cat_mass = self.cat_volume * cat_density
-        return self.shell_mass,self.cat_mass
+        self.shell_kval = 16
+        self.insul_kval = 0.05
+        self.insul_thickness = 0.05
+        self.external_htc = 10
 
 
 class State(object):
@@ -757,7 +759,6 @@ class State(object):
 
         # cp [J/kg/K]
         self.cp = self.myH2*14615 + self.myN2*1113 + self.myNH3*2600
-
         # mu [Ns/m^2]
         #self.mu = 0.000009 * self.myH2 + 0.000018 * self.myN2 + 0.00001 * self.myNH3
 
@@ -852,11 +853,10 @@ class Condenser_Details(object):
         self.prcool = self.vcool * self.cpcool / self.kcool
         self.nuscool = 0.023 * self.reycool ** 0.8 * self.prcool ** 0.4
         self.htc2 = self.nuscool * self.kcool / self.hyd
-
-
         self.abar = 239.69 #constant for sat curve of nh3
         self.bbar = 0.0964 #constant for sat curve of nh3
         self.kints = 10000
+        self.eval = 1e-5
 
 
 class Heat_Exchanger_Details(object):
@@ -867,12 +867,12 @@ class Heat_Exchanger_Details(object):
         self.r2 = 0.003 #outer rad of inner pipe [m]
         self.r3 = 0.0035 #inner rad of outer coolant pipe [m]
         self.hyd = 4 * (self.r3 ** 2 - self.r2 ** 2) * pie / (2 * pie * (self.r2 + self.r3)) #hydraulic diameter of cooling channel [m]
-        self.Length = 4 #length of heat exchanger [m]
-        self.numb = 5 #number of counterflow heat exchangers
+        self.Length = 3 #length of heat exchanger [m]
+        self.numb = 6 #number of counterflow heat exchangers
         self.ix = 500 #number of elements along heat exchanger
         self.jints = 100 #max number of iterations
         self.kval = 16 #thermal conductivity of pipe [W/mK]
-        self.kints = 100000
         self.last_run_bool = True
         self.last_run_eff = 0.8
         self.max_relax = 1
+        self.eval = 1e-5

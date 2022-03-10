@@ -60,7 +60,7 @@ def evaluate_loop(cfg, ops, id_run):
              power_data - pandas dataframe of power consumption
     """
 
-    if ops.TERMINAL_LOG or ops.TERMINAL_LOG_SHORT:
+    if ops.TERMINAL_LOG:
         print("Log for run_%d" % id_run)
 
     # initial inputs - define bed structure, quench ratio
@@ -68,7 +68,7 @@ def evaluate_loop(cfg, ops, id_run):
                cfg.reactor_diameter,
                cfg.reactor_minimum_step,
                log_divs=19, lin_divs=20)
-    shell_mass, cat_mass = bed1.mass()
+    shell_mass, cat_mass = bed1.shell_mass, bed1.cat_mass
 
 
     # set reactor inlet temp
@@ -124,20 +124,14 @@ def evaluate_loop(cfg, ops, id_run):
     stop = 0
     he_det = Heat_Exchanger_Details()
     Pipe_purged = State(0,0,0,273,200)
-
+    note = ''
     while (stop == 0):
         count += 1
-        #if bool_purged:
-            #stop = 1
-        # Mix recycle stream in
+        if count >= cfg.max_iter:
+            stop = 1
+            note = "did not converge"
 
-
-        # relaxation factor on stream?
-
-
-
-
-
+        #mix in recycle stream
         Pipe_1a = mixer(Pipe_IN, Pipe_RE)
 
         # recompress recycled stream
@@ -148,7 +142,7 @@ def evaluate_loop(cfg, ops, id_run):
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
         Pipe_1c = heater_power(Pipe_1b,HTHE_P)
 
-        # plan: make this a quench system/heater, iterate to find f which allows T inlet to be
+        # heat/cool to 673K
         [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c, no_cooling=True)
 
         #Pipe_1d = copy.copy(Pipe_1c)
@@ -159,7 +153,7 @@ def evaluate_loop(cfg, ops, id_run):
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Pipe_2a,exotherm_minus_heatloss,Bed_data] = reactor(Pipe_1d,bed1,ops.REACTOR_BED)
+        [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1,ops.REACTOR_BED)
         #print(Pipe_2a.T)
         Pipe_2a.p -= 2
 
@@ -196,6 +190,7 @@ def evaluate_loop(cfg, ops, id_run):
             print(f'Purged stream = {Pipe_2c.mol_tot:3.3f}')
             k = (cfg.max_mol - Pipe_IN.mol_tot) / Pipe_2c.mol_tot
             [Pipe_RE, Pipe_purged] = Pipe_2c.split(k)
+            note = "purged"
         else:
             Pipe_RE = copy.copy(Pipe_2c)
 
@@ -214,28 +209,41 @@ def evaluate_loop(cfg, ops, id_run):
             stop = 1
 
     if ops.TERMINAL_LOG_SHORT:
-        print(' iter: %i' % count)
+        print('run_%i iter: %i' %(id_run, count))
+
+    power_consumption["n2_m_s"] = cfg.plant_n2
+    power_consumption["h2_m_s"] = cfg.plant_h2
+    power_consumption["ammonia_produced"] = ammonia_produced
+
+    power_consumption["exotherm_reac"] = exotherm_reac
+    power_consumption["heatloss_reac"] = heatloss_reac
+    power_consumption['reactor_mol'] = Pipe_1d.mol_tot
+    power_consumption["conversion"] = (Pipe_2a.NH3 - Pipe_1d.NH3)/(2*Pipe_1d.N2)
+    power_consumption["max_reac_temp"] = max(i[3] for i in Bed_data)
 
 
+    power_consumption["heat_exchanger_power_exchange"] = HTHE_P
+    power_consumption['heat_exchanger_effectiveness'] = effectiveness_heatex
 
     vel_in_reactor = Pipe_1d.volume_fr/bed1.cs_area
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
+    power_consumption["ammonia_%_removed"] = ammonia_removed * 100
 
-    power_consumption['reactor_mol'] = Pipe_1d.mol_tot
+
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass
-    power_consumption["ammonia_produced"] = ammonia_produced
-    power_consumption["ammonia_removed"] = ammonia_removed
-    power_consumption["n2_m_s"] = cfg.plant_n2
-    power_consumption["h2_m_s"] = cfg.plant_h2
-    power_consumption["reactor_e_total"] = power_consumption["recompressor"] + max(power_consumption["heater"],0)
-    power_consumption["reactor_cooling_total"] = power_consumption["Condenser"] - min(power_consumption["heater"],0)
-    power_consumption["exotherm_minus_heatloss"] = exotherm_minus_heatloss
-    power_consumption["Purged"] = Pipe_purged.mol_tot/Pipe_2c.mol_tot
 
-    '''
-    if ops.TERMINAL_LOG:
+
+
+
+    power_consumption["Purged"] = Pipe_purged.mol_tot/Pipe_2c.mol_tot
+    power_consumption["note"] = note
+
+    if ops.TERMINAL_LOG or ops.TERMINAL_LOG_SHORT:
+        if note != '':
+            print("note = " + note)
+        '''
         print('\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
         # Mix recycle stream in
         print('New Feed (cooled) = %3.1f' % Pipe_IN.T + ' K')
@@ -351,6 +359,7 @@ def multi_run(cfg, ops, param=None, vals=None):
         temperature_lst.append(stream_temp['temperature'].tolist())
         pressure_lst.append(stream_temp['pressure'].tolist())
 
+
     stream_indices = stream_temp.index
     power_indices = power_temp.index.values.tolist()
     power_data = pd.DataFrame(tps_lst(power_lst), index=power_indices, columns=run_headers)
@@ -359,6 +368,7 @@ def multi_run(cfg, ops, param=None, vals=None):
     nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
     temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
     pressure_data = pd.DataFrame(tps_lst(pressure_lst), index=stream_indices, columns=run_headers)
+
 
     return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
 
@@ -374,7 +384,7 @@ def tps_lst(list_of_lists):
 def params():
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_h2'
-    rng = np.linspace(0.1, 0.40, 13)  # 0.1,0.4,13 for more detail
+    rng = np.linspace(0.075, 0.325, 11)  # 0.1,0.4,13 for more detail
     return chosen_param, rng
 
 def main():
@@ -404,8 +414,8 @@ def main():
     print('Output for a state variable:')
     print(temperature)  # look at the index column to see what keys are valid (IN, 1a, 1b, etc...)
 
-    chosen_solution = "ammonia_produced"
-    plant_figure(chosen_solution, power)
+    #chosen_solution = "ammonia_produced"
+    #plant_figure(chosen_solution, power)
 
 
 def plant_figure(chosen_solution, power):
@@ -420,21 +430,20 @@ def plant_figure(chosen_solution, power):
 
 def single_run():
     cfg, ops = get_configs(args)
+    ops.TERMINAL_LOG = True
     streamtemp,powertemp = evaluate_loop(cfg,ops,1)
     print(streamtemp)
     print(powertemp)
     plt.show()
 
 def read_and_plot():
-    [chosen_param, rng] = params()
     '''
     'PSA', 'electrolysis', 'N2_comp', 'H2_comp', 'inflow cooling',
        'recompressor', 'heater', 'Condenser', 'reactor_mol',
        'recycle_ratio_mol', 'recycle_ratio_mass', 'ammonia_produced',
-       'ammonia_removed', 'n2_m_s', 'h2_m_s', 'reactor_e_total',
-       'reactor_cooling_total', 'exotherm_minus_heatloss', 'Purged'
+       'ammonia_removed', 'n2_m_s', 'h2_m_s', 'exotherm_minus_heatloss', 'Purged'
     '''
-    chosen_solution = "ammonia_produced"
+    chosen_solution = "condensor"
     power = pandas.read_csv('outputs/power.csv',index_col=0,header=0)
     print(power.index)
     plant_figure(chosen_solution, power)

@@ -75,6 +75,7 @@ class SSConfig:
         self.condenser_eff          = config.getfloat('condenser', 'eff')
         self.condenser_T_cold_in    = config.getfloat('condenser', 'T_cold_in')
         self.max_mol                = 5
+        self.max_iter               = 150
 
 
 class OutOps:
