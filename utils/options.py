@@ -74,6 +74,7 @@ class SSConfig:
         self.condenser_water_mfr    = config.getfloat('condenser', 'water_mfr')
         self.condenser_eff          = config.getfloat('condenser', 'eff')
         self.condenser_T_cold_in    = config.getfloat('condenser', 'T_cold_in')
+        self.max_mol                = 5
 
 
 class OutOps:
@@ -105,7 +106,9 @@ class OutOps:
         self.STEADY_STATE_SOLUTION = config.getboolean('WRITING', 'STEADY_STATE_SOLUTION')
 
         self.TERMINAL_LOG = config.getboolean('TERMINAL', 'LOG')
+        self.TERMINAL_LOG_SHORT = config.getboolean('TERMINAL', 'LOG_SHORT')
         self.TERMINAL_END_LOG_DETAIL = config.getboolean('TERMINAL', 'END_LOG_DETAIL')
+
 
 def read_list_of_floats(s):
     """
