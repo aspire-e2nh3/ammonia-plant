@@ -203,13 +203,13 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             #Use law of mixtures to calculate average fluid properties and overall heat transfer coefficient for an element
 
 
-            vel_h = sh.volume/ (he.numb * 2 * pie * he.r1 ** 2)
+            vel_h = sh.volume_fr / (he.numb * 2 * pie * he.r1 ** 2)
             rey_h = sh.rho * 2 * he.r1 * vel_h / sh.mu
             pr_h = sh.mu * sh.cp / sh.k
             nus_h = 0.023 * rey_h ** 0.8 * pr_h ** 0.4
             htc_h = nus_h * sh.k / (2 * he.r1)
 
-            vel_c = sc.volume / (he.numb * pie * (he.r3 ** 2 - he.r2 ** 2))
+            vel_c = sc.volume_fr / (he.numb * pie * (he.r3 ** 2 - he.r2 ** 2))
             rey_c = sc.rho * 2 * he.hyd * vel_c / sh.mu
             pr_c = sc.mu * sc.cp / sc.k
             nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
@@ -310,7 +310,7 @@ def tristan_condenser(s_in, c):
             #Use law of mixtures to calculate average fluid properties and overall heat transfer coefficient for an element
 
 
-            velmix = s.volume/ (c.numb * 2 * pie * c.r1 ** 2)
+            velmix = s.volume_fr / (c.numb * 2 * pie * c.r1 ** 2)
             reymix = s.rho * 2 * c.r1 * velmix / s.mu
             prmix = s.mu * s.cp / s.k
             nusmix = 0.023 * reymix ** 0.8 * prmix ** 0.4
@@ -382,7 +382,7 @@ def tristan_condenser(s_in, c):
 
 
     #return Tmix,Tcool,savnnh3,s,delpmix,delpcool,dqsum
-    return s,Pcooling,(s_in.NH3-s.NH3)/s_in.NH3,Tcool[0]
+    return s,Pcooling,Tcool[0]
 
 
 def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
@@ -501,7 +501,7 @@ def reactor(s_in, b, log=False):  # mol/s, K, Pa
         K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
                         + 2001.6 / T + 2.67899)
 
-        # Reaction Rate per unit volume
+        # Reaction Rate per unit volume_fr
         alpha = 0.5
         RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
                         - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
@@ -666,7 +666,7 @@ class Bed(object):
     A class to store properties of a 1D Bed model for a reactor.
     also generates a vector to describe end
     '''
-    def __init__(self, length, diam, mini, newvectmethod=True, divs=19):
+    def __init__(self, length, diam, mini, log_divs=19,lin_divs=100):
         self.length = length
         self.diam = diam
         self.r = diam/2
@@ -675,12 +675,9 @@ class Bed(object):
         self.htc = 10
         self.surrounding_T = 298
         # generate vect
-        if not newvectmethod:
-            self.vect = [0] + np.geomspace(mini, length / 10, divs, endpoint=False).tolist() + \
-                        np.linspace(length / 10, length, 10).tolist()
-        else:
-            self.vect = [0] + np.geomspace(mini, length / 100, divs, endpoint=False).tolist() + \
-                        np.linspace(length / 100, length, 100).tolist()
+
+        self.vect = [0] + np.geomspace(mini, length / lin_divs, log_divs, endpoint=False).tolist() + \
+                    np.linspace(length / lin_divs, length, lin_divs-1).tolist()
 
         self.vectlen = len(self.vect)
 
@@ -727,7 +724,10 @@ class State(object):
         self.NH3 = NH3
         self.T = T
         self.p = p
-        self.update_fast()
+        if H2 + N2 + NH3 > 0:
+            self.update_fast()
+        else:
+            self.mol_tot = 0
 
 
     def update(self):
@@ -785,8 +785,8 @@ class State(object):
         #gamma [-]
         self.gamma = (1 + 1 / (self.yN2 / 0.4 + self.yH2 / 0.4 + self.yNH3 / 0.31))
 
-        # volume [m^3
-        self.volume = self.mass_tot / self.rho
+        # volume_fr [m^3
+        self.volume_fr = self.mass_tot / self.rho
 
 
     def update_slow(self):
@@ -798,8 +798,8 @@ class State(object):
         self.rho = float( 1 / (self.myN2 / pm.get('ig.N2').d(self.T, self.p) +
                                self.myH2 / pm.get('ig.H2').d(self.T, self.p) +
                                self.myNH3 / pm.get('ig.NH3').d(self.T, self.p)))
-        # volume [m^3
-        self.volume = self.mass_tot/self.rho
+        # volume_fr [m^3
+        self.volume_fr = self.mass_tot / self.rho
 
         # k from data from engineering toolbox [W/K/m]
         self.k = (0.17 + (self.T-250)*(0.24-0.17)/(400-250)) * self.myH2 + \
