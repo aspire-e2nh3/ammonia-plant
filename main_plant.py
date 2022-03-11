@@ -449,4 +449,4 @@ def read_and_plot():
     plant_figure(chosen_solution, power)
 
 if __name__ == "__main__":
-    main()
+    single_run()
