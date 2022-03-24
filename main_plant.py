@@ -143,7 +143,7 @@ def evaluate_loop(cfg, ops, id_run):
         Pipe_1c = heater_power(Pipe_1b,HTHE_P)
 
         # heat/cool to 673K
-        [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c, no_cooling=True)
+        [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c, no_cooling=False)
 
         #Pipe_1d = copy.copy(Pipe_1c)
         #power_consumption["heater"] = 0
@@ -155,13 +155,13 @@ def evaluate_loop(cfg, ops, id_run):
 
         [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1,ops.REACTOR_BED)
         #print(Pipe_2a.T)
-        Pipe_2a.p -= 2
+        Pipe_2a.p -= 5*Pipe_1d.mol_tot/cfg.max_mol
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         # estimate heat exchange variant
 
-        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, he_det] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, he_det)
+        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss, he_det] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, he_det)
         effectiveness_heatex = he_det.last_run_eff
 
 
@@ -215,15 +215,19 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["h2_m_s"] = cfg.plant_h2
     power_consumption["ammonia_produced"] = ammonia_produced
 
-    power_consumption["exotherm_reac"] = exotherm_reac
-    power_consumption["heatloss_reac"] = heatloss_reac
-    power_consumption['reactor_mol'] = Pipe_1d.mol_tot
+    power_consumption['reactor_mol_in'] = Pipe_1d.mol_tot
+    power_consumption["reactor_exotherm"] = exotherm_reac
+    power_consumption["reactor_heatloss"] = heatloss_reac
+
     power_consumption["conversion"] = (Pipe_2a.NH3 - Pipe_1d.NH3)/(2*Pipe_1d.N2)
-    power_consumption["max_reac_temp"] = max(i[3] for i in Bed_data)
+    power_consumption["reactor_in_temp"] = Bed_data[0][3]
+    power_consumption["reactor_max_temp"] = max(i[3] for i in Bed_data)
+    power_consumption["reactor_out_temp"] = Bed_data[-1][3]
 
 
     power_consumption["heat_exchanger_power_exchange"] = HTHE_P
     power_consumption['heat_exchanger_effectiveness'] = effectiveness_heatex
+    power_consumption["heat_exchanger_heatloss"] = heat_ex_heatloss
 
     vel_in_reactor = Pipe_1d.volume_fr/bed1.cs_area
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
@@ -373,18 +377,12 @@ def multi_run(cfg, ops, param=None, vals=None):
     return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
 
 
-def tps_lst(list_of_lists):
-    """"""
-    array = np.array(list_of_lists)
-    transpose = array.T
-    transpose_list = transpose.tolist()
 
-    return transpose_list
 
 def params():
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_h2'
-    rng = np.linspace(0.075, 0.325, 11)  # 0.1,0.4,13 for more detail
+    rng = np.linspace(0.05, 0.3, 6)  # 0.1,0.4,13 for more detail
     return chosen_param, rng
 
 def main():
@@ -397,6 +395,7 @@ def main():
 
     power, n2, h2, nh3, temperature, pressure = multi_run(cfg, ops, param=chosen_param, vals=rng)
 
+    createFolder('./outputs/')
     power.to_csv('outputs/power.csv')
     n2.to_csv('outputs/n2.csv')
     h2.to_csv('outputs/h2.csv')
@@ -449,4 +448,4 @@ def read_and_plot():
     plant_figure(chosen_solution, power)
 
 if __name__ == "__main__":
-    main()
+    main ()

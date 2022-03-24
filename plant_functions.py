@@ -8,6 +8,7 @@ import copy
 import math
 import pyromat as pm
 import numpy as np
+import os
 
 pm.config['unit_energy'] = 'J'  # default for pyromat is kJ
 
@@ -145,7 +146,8 @@ def heat_exchanger_water2gas(s, T_end=0, cool_to_sat_point=False, effectiveness=
 def tristan_heat_exchanger(sh_in,sc_in,he):
     sh = copy.copy(sh_in)
     sc = copy.copy(sc_in)
-    dq = np.full(he.ix, 0, float)
+    dq_hot2cold = np.full(he.ix, 0, float)
+    dq_cold2ext = np.full(he.ix, 0, float)
 
     dqsumsaved = 0
     if he.last_run_bool:
@@ -187,8 +189,8 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
 
         #FORWARD PASS ON MIXTURE SIDE OF HEAT EXCHANGER
 
-        dqsum = 0 #reset heat integration variable
-
+        dq_hot2cold_sum = 0 #reset heat integration variable
+        dq_cold2ext_sum = 0
 
 
         for ii in range(0, he.ix):
@@ -217,11 +219,19 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
 
             Uval = 1 / (1 / (htc_h * he.r1 * 2 * pie * dx) + np.log(he.r2 / he.r1) / (2 * pie * he.kval * dx) + 1 / (htc_c * he.r2 * 2 * pie * dx))
 
-            #determine heat flow from mixture to coolant in that element
-            dq[ii] = Uval * (Th[ii] - Tc[ii]) * he.numb * relax
-            dqsum += dq[ii] #integrate total heat lost to coolant
+            Uval_ext = 2 * np.pi * dx/ (1 / (htc_c * he.r3)
+                                        + np.log(he.r4 / he.r3) / he.kval
+                                        + np.log(he.r5 / he.r4) / he.kval_insul
+                                        + 1 / (he.htc_ext * he.r5))
 
-            delT = dq[ii]/(sh.cp*sh.mass_tot)
+            #determine heat flow from mixture to coolant in that element and heat lost to enviroment
+            dq_hot2cold[ii] = Uval * (Th[ii] - Tc[ii]) * he.numb * relax
+            dq_cold2ext[ii] = Uval_ext * (Tc[ii] - he.T_ext) * he.numb * relax
+
+            dq_hot2cold_sum += dq_hot2cold[ii] #integrate total heat lost to coolant
+            dq_cold2ext_sum += dq_cold2ext[ii]  # integrate total heat lost from coolant to external
+
+            delT = dq_hot2cold[ii]/(sh.cp*sh.mass_tot)
             #reduce temperature of mixture for next element based on heat lost from this element
 
             Th[ii + 1] = Th[ii] - delT
@@ -232,12 +242,12 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             Icon = he.ix - ii
             sc.T = Tc[Icon]
             sc.update_fast()
-            Tc[Icon-1] = Tc[Icon] + dq[Icon-1] / (sc.cp*sc.mass_tot) #increase temp of coolant in line with heat flow from mixture
+            Tc[Icon-1] = Tc[Icon] + (dq_hot2cold[Icon-1] + dq_cold2ext[Icon-1]) / (sc.cp*sc.mass_tot) #increase temp of coolant in line with heat flow from mixture
 
         #convergence check - has exit mole fraction changed from last main loop iteration
-        if (abs(dqsum - dqsumsaved) < he.eval) & (j > miniter): #if loop to check for convergence
+        if (abs(dq_hot2cold_sum - dqsumsaved) < he.eval) & (j > miniter): #if loop to check for convergence
             stop = True
-        dqsumsaved = dqsum
+        dqsumsaved = dq_hot2cold_sum
         #print(j, end=' ')
         #if j % 100 == 0:
         #    print('\n', end=' ')
@@ -248,7 +258,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
 
 
     #return(sh,sc,Th,Tc)
-    return sh, sc, dqsum, he
+    return sh, sc, dq_hot2cold_sum, dq_cold2ext_sum, he
 
 
 def tristan_condenser(s_in, c):
@@ -527,10 +537,10 @@ def reactor(s_in, b, log=False):  # mol/s, K, Pa
         nus = 0.023 * rey ** 0.8 * pr ** 0.4
         htc = nus * s.k / b.r
 
-        Uval = dX / (1 / (htc * b.in_circum)
-                    + np.log((b.r + b.thickness) / b.r) / (2 * np.pi * b.shell_kval)
-                    + np.log((b.r + b.thickness + b.insul_thickness) / (b.r + b.thickness)) / (2 * np.pi * b.insul_kval)
-                    + 1 / (b.external_htc * b.out_circum))
+        Uval = 2 * np.pi * dX / (1 / (htc * b.in_circum)
+                                + np.log((b.r + b.thickness) / b.r) / b.shell_kval
+                                + np.log((b.r + b.thickness + b.insul_thickness) / (b.r + b.thickness)) / b.insul_kval
+                                + 1 / (b.external_htc * (b.r + b.thickness + b.insul_thickness)))
 
         heat_loss = Uval * (s.T - b.surrounding_T)
 
@@ -706,7 +716,7 @@ class Bed(object):
         self.shell_kval = 16
         self.insul_kval = 0.05
         self.insul_thickness = 0.05
-        self.external_htc = 10
+        self.external_htc = 12
 
 
 class State(object):
@@ -844,7 +854,7 @@ class Condenser_Details(object):
         self.dhvap = 23370 #average value for enthalpy of condensation [J/mol]
         self.mcool = mass_flow #mass flow of coolant [kg/s]
         self.cpcool = 4186 #heat capacity of coolant [kg/s]
-        self.Tcoolin = 273 #coolant inlet temp [K]
+        self.Tcoolin = 300 #coolant inlet temp [K]
         self.rcool = 1000 #density of coolant [kg/m3]
         self.kcool = 0.6 #thermal conductivity of coolant [W/mK]
         self.vcool = 0.001 #dynamic viscosity of coolant [Pas]
@@ -876,3 +886,25 @@ class Heat_Exchanger_Details(object):
         self.last_run_eff = 0.8
         self.max_relax = 1
         self.eval = 1e-5
+        self.r4 = 0.0045
+        self.r5 = 0.01
+        self.htc_ext = 12
+        self.kval_insul = 0.05
+        self.T_ext = 298
+
+
+
+def createFolder(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except OSError:
+        print ('Error: Creating directory. ' +  directory)
+
+def tps_lst(list_of_lists):
+    """"""
+    array = np.array(list_of_lists)
+    transpose = array.T
+    transpose_list = transpose.tolist()
+
+    return transpose_list
