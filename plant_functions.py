@@ -467,7 +467,7 @@ def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
     return s_out, power, ammonia_removed, T_cout
 
 
-def reactor(s_in, b, log=False):  # mol/s, K, Pa
+def reactor(s_in, b,):  # mol/s, K, Pa
     """
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 
@@ -537,12 +537,17 @@ def reactor(s_in, b, log=False):  # mol/s, K, Pa
         nus = 0.023 * rey ** 0.8 * pr ** 0.4
         htc = nus * s.k / b.r
 
-        Uval = 2 * np.pi * dX / (1 / (htc * b.in_circum)
-                                + np.log((b.r + b.thickness) / b.r) / b.shell_kval
-                                + np.log((b.r + b.thickness + b.insul_thickness) / (b.r + b.thickness)) / b.insul_kval
-                                + 1 / (b.external_htc * (b.r + b.thickness + b.insul_thickness)))
+        vel_c = (b.coolant_mfr/b.coolant_rho) / (2 * b.coolant_channel * b.length)
+        rey_c = b.coolant_rho * np.pi * (b.r+b.thickness) * vel_c / b.coolant_mu
+        pr_c = b.coolant_mu * b.coolant_cp / b.coolant_k
+        nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
+        htc_c = nus_c * b.coolant_k / (b.r + b.thickness)
 
-        heat_loss = Uval * (s.T - b.surrounding_T)
+        Uval = 2 * np.pi * dX / (1 / (htc * b.in_circum)
+                                 + np.log((b.r + b.thickness) / b.r) / b.shell_kval
+                                 + 1 / (htc_c * (b.r + b.thickness)))
+
+        heat_loss = Uval * (s.T - b.coolant_T)
 
         s.T += (exotherm-heat_loss) / (s.cp * s.mass_tot)
 
@@ -718,6 +723,14 @@ class Bed(object):
         self.insul_thickness = 0.05
         self.external_htc = 12
 
+        self.coolant_mfr = 1
+        self.coolant_rho = 680.2 # kg/m3
+        self.coolant_channel = 0.01
+        self.coolant_mu = 0.13*0.001 # Pa/s
+        self.coolant_cp = 2701 # J/kg/K
+        self.coolant_k = 0.0779 # W/m/K
+        self.coolant_T = 673+25 # K
+
 
 class State(object):
     '''
@@ -854,7 +867,7 @@ class Condenser_Details(object):
         self.dhvap = 23370 #average value for enthalpy of condensation [J/mol]
         self.mcool = mass_flow #mass flow of coolant [kg/s]
         self.cpcool = 4186 #heat capacity of coolant [kg/s]
-        self.Tcoolin = 300 #coolant inlet temp [K]
+        self.Tcoolin = 273 #coolant inlet temp [K]
         self.rcool = 1000 #density of coolant [kg/m3]
         self.kcool = 0.6 #thermal conductivity of coolant [W/mK]
         self.vcool = 0.001 #dynamic viscosity of coolant [Pas]

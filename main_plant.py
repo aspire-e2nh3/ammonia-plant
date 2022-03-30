@@ -67,7 +67,7 @@ def evaluate_loop(cfg, ops, id_run):
     bed1 = Bed(cfg.reactor_length,
                cfg.reactor_diameter,
                cfg.reactor_minimum_step,
-               log_divs=19, lin_divs=20)
+               log_divs=19, lin_divs=100)
     shell_mass, cat_mass = bed1.shell_mass, bed1.cat_mass
 
 
@@ -153,7 +153,7 @@ def evaluate_loop(cfg, ops, id_run):
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1,ops.REACTOR_BED)
+        [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1)
         #print(Pipe_2a.T)
         Pipe_2a.p -= 5*Pipe_1d.mol_tot/cfg.max_mol
 
@@ -448,4 +448,4 @@ def read_and_plot():
     plant_figure(chosen_solution, power)
 
 if __name__ == "__main__":
-    main ()
+    single_run()
