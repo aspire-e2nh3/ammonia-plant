@@ -85,16 +85,14 @@ def evaluate_loop(cfg, ops, id_run):
 
     # make n2 and h2 input lines from psa and electrolysis functions
     [Pipe_N2_LP, power_consumption["PSA"]] = psa_estimate(cfg.plant_n2)  # MAYBE ADD AIR_IN?
-    [Pipe_H2_LP, power_consumption["electrolysis"], Water_in] = electrolysis(cfg.plant_h2)
+    [Pipe_H2_LP, power_consumption["electrolysis"]] = electrolysis(cfg.plant_h2)
 
     # compress N2 and H2 lines
 
-    [Pipe_N2_HP, power_consumption["N2_comp"], heatlost1, n1] = ptcompressor(Pipe_N2_LP,
-                                                                             cfg.plant_pressure,
-                                                                             t_out=cfg.reactor_T_IN + cfg.n2compressor_dT)
-    [Pipe_H2_HP, power_consumption["H2_comp"], heatlost2, n2] = ptcompressor(Pipe_H2_LP,
-                                                                             cfg.plant_pressure,
-                                                                             t_out=cfg.reactor_T_IN + cfg.h2compressor_dT)
+    [Pipe_N2_HP, power_consumption["N2_comp"], heatlost1] = compressor(Pipe_N2_LP,
+                                                                             cfg.plant_pressure)
+    [Pipe_H2_HP, power_consumption["H2_comp"], heatlost2] = compressor(Pipe_H2_LP,
+                                                                             cfg.plant_pressure)
 
     # mix H2 and N2 lines
     Pipe_IN_uncooled = mixer(Pipe_H2_HP, Pipe_N2_HP)
@@ -180,7 +178,7 @@ def evaluate_loop(cfg, ops, id_run):
 
         #[Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=cfg.condenser_water_mfr, T_cin=cfg.condenser_T_cold_in)
 
-        [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser(Pipe_2b,Condenser_Details())
+        [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser(Pipe_2b, Condenser_Details())
 
         ammonia_produced = Pipe_2b.NH3 - Pipe_2c.NH3
         ammonia_removed = ammonia_produced/Pipe_2b.NH3
