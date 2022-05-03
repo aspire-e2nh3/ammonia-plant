@@ -65,16 +65,8 @@ class SSConfig:
         self.reactor_diameter       = config.getfloat('reactor', 'diameter')
         self.reactor_minimum_step   = config.getfloat('reactor', 'minimum_step')
 
-        self.heat_exchanger_eff     = config.getfloat('heat_exchanger', 'eff')
-
-        self.chiller_water_mfr      = config.getfloat('chiller', 'water_mfr')
-        self.chiller_eff            = config.getfloat('chiller', 'eff')
-        self.chiller_T_cold_in      = config.getfloat('chiller', 'T_cold_in')
-
-        self.condenser_water_mfr    = config.getfloat('condenser', 'water_mfr')
-        self.condenser_eff          = config.getfloat('condenser', 'eff')
-        self.condenser_T_cold_in    = config.getfloat('condenser', 'T_cold_in')
         self.max_mol                = 5
+        self.max_iter               = 200
 
 
 class OutOps:
