@@ -839,7 +839,7 @@ def psa_estimate(N2_mol, p_out=10, eta=0.7):
     return s_out, power
 
 
-def electrolysis(H2mol, eta=0.65):  # mol/s to W
+def electrolysis(H2mol, eta=0.75):  # mol/s to W
     """
         Function to return power for PEM electrolysis to separate given mol of H2.
 
@@ -1091,7 +1091,6 @@ class Heat_Exchanger_Details(object):
         self.htc_ext = 12
         self.kval_insul = 0.05
         self.T_ext = 298
-
 
 
 def createFolder(directory):

@@ -203,7 +203,7 @@ def evaluate_loop(cfg, ops, id_run):
 
         if ops.TERMINAL_LOG:
             print(' i: %i, convergence: %1.6f' %(count,(2*Pipe_IN.N2 - ammonia_produced)/(2*Pipe_IN.N2)))
-        if abs(2*(Pipe_IN.N2 - Pipe_purged.N2) - (ammonia_produced + Pipe_purged.NH3)) < cfg.plant_convergence:
+        if abs(2*(Pipe_IN.N2 - Pipe_purged.N2) - (ammonia_produced + Pipe_purged.NH3))/(2*Pipe_IN.N2) < cfg.plant_convergence:
             stop = 1
 
     if ops.TERMINAL_LOG_SHORT:
@@ -375,13 +375,12 @@ def multi_run(cfg, ops, param=None, vals=None):
     return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
 
 
-
-
 def params():
     # hardcoding param_sweep for now, will eventually be improved
     chosen_param = 'plant_h2'
     rng = np.linspace(0.05, 0.3, 6)  # 0.1,0.4,13 for more detail
     return chosen_param, rng
+
 
 def main():
     """ Main to run the ammonia plant"""
@@ -425,6 +424,7 @@ def plant_figure(chosen_solution, power):
 
     # decide how to pass in the variables for multiple runs
 
+
 def single_run():
     cfg, ops = get_configs(args)
     ops.TERMINAL_LOG = True
@@ -432,6 +432,7 @@ def single_run():
     print(streamtemp)
     print(powertemp)
     plt.show()
+
 
 def read_and_plot():
     '''
@@ -444,6 +445,7 @@ def read_and_plot():
     power = pandas.read_csv('outputs/power.csv',index_col=0,header=0)
     print(power.index)
     plant_figure(chosen_solution, power)
+
 
 if __name__ == "__main__":
     single_run()
