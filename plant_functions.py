@@ -143,22 +143,19 @@ def heat_exchanger_water2gas(s, T_end=0, cool_to_sat_point=False, effectiveness=
     return s_out, Q, effectiveness
 
 
-def tristan_heat_exchanger(sh_in,sc_in,he):
+def tristan_heat_exchanger(sh_in,sc_in,cfg):
     sh = copy.copy(sh_in)
     sc = copy.copy(sc_in)
-    dq_hot2cold = np.full(he.ix, 0, float)
-    dq_cold2ext = np.full(he.ix, 0, float)
+    dq_hot2cold = np.full(cfg.he_ix, 0, float)
+    dq_cold2ext = np.full(cfg.he_ix, 0, float)
 
     dqsumsaved = 0
-    if he.last_run_bool:
-        Th = np.linspace(sh.T, sh.T - he.last_run_eff*(sh.T - sc.T), he.ix+1)
-        Tc = np.linspace(sc.T + he.last_run_eff*(sh.T - sc.T), sc.T, he.ix+1)
-    else:
-        Th = np.full(he.ix + 1, sh.T, float)
-        Tc = np.full(he.ix + 1, sc.T, float)
+
+    Th = np.full(cfg.he_ix + 1, sh.T, float)
+    Tc = np.full(cfg.he_ix + 1, sc.T, float)
 
     pie = 3.141592658
-    dx = he.Length / he.ix  # length of finite segment [m]
+    dx = cfg.he_length / cfg.he_ix  # length of finite segment [m]
 
 
 
@@ -166,16 +163,14 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
     rstep = rstart
     miniter = (1 - rstart) / rstep
 
-    if he.last_run_bool:
-        miniter = 0
-        rstart = 1
+
 
     #MAIN COMPUTATIONAL LOOP
     j = 0
     stop = False
     while stop == False:
         j += 1
-        if j > he.jints:
+        if j > cfg.he_jints:
             stop=True
 
 
@@ -184,7 +179,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
 
         #define relaxation factor for smooth convergence
 
-        relax = min(rstart + j * rstep, he.max_relax)
+        relax = min(rstart + j * rstep, cfg.he_max_relax)
 
 
         #FORWARD PASS ON MIXTURE SIDE OF HEAT EXCHANGER
@@ -193,7 +188,7 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
         dq_cold2ext_sum = 0
 
 
-        for ii in range(0, he.ix):
+        for ii in range(0, cfg.he_ix):
 
             sh.T = Th[ii]
             sh.update_fast()
@@ -205,28 +200,28 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             #Use law of mixtures to calculate average fluid properties and overall heat transfer coefficient for an element
 
 
-            vel_h = sh.volume_fr / (he.numb * 2 * pie * he.r1 ** 2)
-            rey_h = sh.rho * 2 * he.r1 * vel_h / sh.mu
+            vel_h = sh.volume_fr / (cfg.he_numb * 2 * pie * cfg.he_r1 ** 2)
+            rey_h = sh.rho * 2 * cfg.he_r1 * vel_h / sh.mu
             pr_h = sh.mu * sh.cp / sh.k
             nus_h = 0.023 * rey_h ** 0.8 * pr_h ** 0.4
-            htc_h = nus_h * sh.k / (2 * he.r1)
+            htc_h = nus_h * sh.k / (2 * cfg.he_r1)
 
-            vel_c = sc.volume_fr / (he.numb * pie * (he.r3 ** 2 - he.r2 ** 2))
-            rey_c = sc.rho * 2 * he.hyd * vel_c / sc.mu
+            vel_c = sc.volume_fr / (cfg.he_numb * pie * (cfg.he_r3 ** 2 - cfg.he_r2 ** 2))
+            rey_c = sc.rho * 2 * cfg.he_hyd * vel_c / sc.mu
             pr_c = sc.mu * sc.cp / sc.k
             nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
-            htc_c = nus_c * sc.k / he.hyd
+            htc_c = nus_c * sc.k / cfg.he_hyd
 
-            Uval = 1 / (1 / (htc_h * he.r1 * 2 * pie * dx) + np.log(he.r2 / he.r1) / (2 * pie * he.kval * dx) + 1 / (htc_c * he.r2 * 2 * pie * dx))
+            Uval = 1 / (1 / (htc_h * cfg.he_r1 * 2 * pie * dx) + np.log(cfg.he_r2 / cfg.he_r1) / (2 * pie * cfg.he_kval * dx) + 1 / (htc_c * cfg.he_r2 * 2 * pie * dx))
 
-            Uval_ext = 2 * np.pi * dx/ (1 / (htc_c * he.r3)
-                                        + np.log(he.r4 / he.r3) / he.kval
-                                        + np.log(he.r5 / he.r4) / he.kval_insul
-                                        + 1 / (he.htc_ext * he.r5))
+            Uval_ext = 2 * np.pi * dx/ (1 / (htc_c * cfg.he_r3)
+                                        + np.log(cfg.he_r4 / cfg.he_r3) / cfg.he_kval
+                                        + np.log(cfg.he_r5 / cfg.he_r4) / cfg.he_kval_insul
+                                        + 1 / (cfg.he_htc_ext * cfg.he_r5))
 
             #determine heat flow from mixture to coolant in that element and heat lost to enviroment
-            dq_hot2cold[ii] = Uval * (Th[ii] - Tc[ii]) * he.numb * relax
-            dq_cold2ext[ii] = Uval_ext * (Tc[ii] - he.T_ext) * he.numb * relax
+            dq_hot2cold[ii] = Uval * (Th[ii] - Tc[ii]) * cfg.he_numb * relax
+            dq_cold2ext[ii] = Uval_ext * (Tc[ii] - cfg.he_T_ext) * cfg.he_numb * relax
 
             dq_hot2cold_sum += dq_hot2cold[ii] #integrate total heat lost to coolant
             dq_cold2ext_sum += dq_cold2ext[ii]  # integrate total heat lost from coolant to external
@@ -237,15 +232,15 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
             Th[ii + 1] = Th[ii] - delT
 
         #COUNTER PASS ON COOLANT CHANNEL
-        Tc[he.ix] = sc_in.T
-        for ii in range(0, he.ix): #loop to update coolant temperatures
-            Icon = he.ix - ii
+        Tc[cfg.he_ix] = sc_in.T
+        for ii in range(0, cfg.he_ix): #loop to update coolant temperatures
+            Icon = cfg.he_ix - ii
             sc.T = Tc[Icon]
             sc.update_fast()
             Tc[Icon-1] = Tc[Icon] + (dq_hot2cold[Icon-1] + dq_cold2ext[Icon-1]) / (sc.cp*sc.mass_tot) #increase temp of coolant in line with heat flow from mixture
 
         #convergence check - has exit mole fraction changed from last main loop iteration
-        if (abs(dq_hot2cold_sum - dqsumsaved) < he.eval) & (j > miniter): #if loop to check for convergence
+        if (abs(dq_hot2cold_sum - dqsumsaved) < cfg.he_eval) & (j > miniter): #if loop to check for convergence
             stop = True
         dqsumsaved = dq_hot2cold_sum
         #print(j, end=' ')
@@ -253,12 +248,11 @@ def tristan_heat_exchanger(sh_in,sc_in,he):
         #    print('\n', end=' ')
 
     #print('\n', end=' ')
-    he_eff = (Tc[0] - Tc[he.ix])/(Th[0]-Tc[he.ix])
-    he.last_run_eff = he_eff
+    he_eff = (Tc[0] - Tc[cfg.he_ix])/(Th[0]-Tc[cfg.he_ix])
 
 
     #return(sh,sc,Th,Tc)
-    return sh, sc, dq_hot2cold_sum, dq_cold2ext_sum, he
+    return sh, sc, dq_hot2cold_sum, dq_cold2ext_sum
 
 
 def tristan_condenser(s_in, c):

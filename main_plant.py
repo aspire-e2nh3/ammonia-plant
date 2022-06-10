@@ -125,7 +125,7 @@ def evaluate_loop(cfg, ops, id_run):
     note = ''
     while (stop == 0):
         count += 1
-        if count >= cfg.max_iter:
+        if count >= cfg.plant_max_iter:
             stop = 1
             note = "did not converge"
 
@@ -153,13 +153,13 @@ def evaluate_loop(cfg, ops, id_run):
 
         [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1)
         #print(Pipe_2a.T)
-        Pipe_2a.p -= 5*Pipe_1d.mol_tot/cfg.max_mol
+        Pipe_2a.p -= 10*(Pipe_1d.mol_tot/cfg.plant_max_mol)**2
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         # estimate heat exchange variant
 
-        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss, he_det] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, he_det)
+        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
         effectiveness_heatex = he_det.last_run_eff
 
 
@@ -183,10 +183,10 @@ def evaluate_loop(cfg, ops, id_run):
         ammonia_produced = Pipe_2b.NH3 - Pipe_2c.NH3
         ammonia_removed = ammonia_produced/Pipe_2b.NH3
 
-        if (Pipe_2c.mol_tot + Pipe_IN.mol_tot) > cfg.max_mol:
+        if (Pipe_2c.mol_tot + Pipe_IN.mol_tot) > cfg.plant_max_mol:
             bool_purged = True
             print(f'Purged stream = {Pipe_2c.mol_tot:3.3f}')
-            k = (cfg.max_mol - Pipe_IN.mol_tot) / Pipe_2c.mol_tot
+            k = (cfg.plant_max_mol - Pipe_IN.mol_tot) / Pipe_2c.mol_tot
             [Pipe_RE, Pipe_purged] = Pipe_2c.split(k)
             note = "purged"
         else:
