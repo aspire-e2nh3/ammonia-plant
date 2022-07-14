@@ -120,7 +120,6 @@ def evaluate_loop(cfg, ops, id_run):
                     cfg.plant_pressure - 2)
     count = 0
     stop = 0
-    he_det = Heat_Exchanger_Details()
     Pipe_purged = State(0,0,0,273,200)
     note = ''
     while (stop == 0):
