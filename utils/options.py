@@ -48,8 +48,9 @@ class SSConfig:
         self.plant_h2               = plant.getfloat('h2')
         self.plant_ratio_n          = plant.getfloat('ratio_n')
         self.plant_n2               = self.plant_h2/self.plant_ratio_n
-        self.plant_max_mol                = plant.getfloat('max_mol')
-        self.plant_max_iter               = plant.getfloat('max_iter')
+        self.plant_max_mol                = plant.getfloat('max mol')
+        self.plant_max_iter               = plant.getfloat('max iter')
+        self.plant_recycle_estimate       = plant.getfloat('recycle estimate')
 
         precooler = config["precooler"]
         self.precooler_water_mfr    = precooler.getfloat('water_mfr')

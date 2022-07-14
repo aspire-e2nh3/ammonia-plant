@@ -252,7 +252,7 @@ def tristan_heat_exchanger(sh_in,sc_in,cfg):
 
 
     #return(sh,sc,Th,Tc)
-    return sh, sc, dq_hot2cold_sum, dq_cold2ext_sum
+    return sh, sc, dq_hot2cold_sum, dq_cold2ext_sum,he_eff
 
 
 def tristan_condenser(s_in, cfg):

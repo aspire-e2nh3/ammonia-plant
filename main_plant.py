@@ -78,7 +78,7 @@ def evaluate_loop(cfg, ops, id_run):
     inlet_temp = cfg.reactor_T_IN
     HTHE_P = 27000 * cfg.plant_h2/0.3
 
-    recycle_estimate = 6
+    recycle_estimate = 8
 
     # initialise power consumption dictionary
     power_consumption = {}
@@ -113,8 +113,8 @@ def evaluate_loop(cfg, ops, id_run):
                                                                                                        T_end=cfg.reactor_T_IN,
                                                                                                        T_cin=cfg.precooler_water_mfr)
 
-    Pipe_RE = State(recycle_estimate * cfg.plant_h2,
-                    recycle_estimate * cfg.plant_n2,
+    Pipe_RE = State(cfg.plant_recycle_estimate * cfg.plant_h2,
+                    cfg.plant_recycle_estimate * cfg.plant_n2,
                     0.5 * cfg.plant_n2,
                     cfg.reactor_T_IN,
                     cfg.plant_pressure - 2)
@@ -159,8 +159,8 @@ def evaluate_loop(cfg, ops, id_run):
 
         # estimate heat exchange variant
 
-        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
-        effectiveness_heatex = he_det.last_run_eff
+        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss,he_eff] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
+        effectiveness_heatex = he_eff
 
 
         #[Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heatex] = heat_exchanger_counter(Pipe_2a, Pipe_1b, T2out=cfg.reactor_T_1c)
