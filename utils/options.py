@@ -5,7 +5,7 @@ from genericpath import exists
 import os
 import configparser
 
-from numpy import empty
+import numpy
 
 class SSConfig:
     """
@@ -88,39 +88,37 @@ class SSConfig:
         self.he_htc_ext = he.getfloat('htc ext')
         self.he_kval_insul = he.getfloat('kval insul')
         self.he_T_ext = he.getfloat('T ext')
-'''
+
         c = config["condenser"]
 
-        self.c_r1 = 0.002  # inner rad of inner ammonia pipe [m]
-        self.c_r2 = 0.003  # outer rad of inner pipe [m]
-        self.c_r3 = 0.02  # inner rad of outer coolant pipe [m]
+        self.c_r1 = c.getfloat('r1')  # inner rad of inner ammonia pipe [m]
+        self.c_r2 = c.getfloat('r2')  # outer rad of inner pipe [m]
+        self.c_r3 = c.getfloat('r3')  # inner rad of outer coolant pipe [m]
         self.c_hyd = 2 * (self.c_r3 - self.c_r2)  # hydraulic diameter of cooling channel [m]
-        self.c_length = 5  # length of heat exchanger [m]
-        self.c_numb = 100  # number of counterflow heat exchangers
+        self.c_length = c.getfloat('length')
+        self.c_numb = c.getint('numb')
         
-        self.c_ix = 500  # number of elements along heat exchanger
-        self.c_jints = 100  # max number of iterations
-        self.c_kval = 16  # thermal conductivity of pipe [W/mK]
-        self.kints = 10000
-        self.eval = 1e-5
+        self.c_ix = c.getint('ix')  # number of elements along heat exchanger
+        self.c_jints = c.getint('jints')  # max number of iterations
+        self.c_kval = c.getfloat('kval')  # thermal conductivity of pipe [W/mK]
+        self.c_kints = c.getint('kints')
+        self.c_eval = c.getfloat('eval')
 
-        self.dhvap = 23370  # average value for enthalpy of condensation [J/mol]
-        self.mcool = 0.3  # mass flow of coolant [kg/s]
-        self.cpcool = 4186  # heat capacity of coolant [kg/s]
-        self.Tcoolin = 273  # coolant inlet temp [K]
-        self.rcool = 1000  # density of coolant [kg/m3]
-        self.kcool = 0.6  # thermal conductivity of coolant [W/mK]
-        self.vcool = 0.001  # dynamic viscosity of coolant [Pas]
-        self.velcool = self.mcool / (np.pi * (self.r3 ** 2 - self.r2 ** 2)) / self.numb
-        self.reycool = self.rcool * self.velcool * self.hyd / self.vcool
-        self.prcool = self.vcool * self.cpcool / self.kcool
-        self.nuscool = 0.023 * self.reycool ** 0.8 * self.prcool ** 0.4
-        self.htc2 = self.nuscool * self.kcool / self.hyd
-        used:?
-        self.abar = 239.69  # constant for sat curve of nh3
-        self.bbar = 0.0964  # constant for sat curve of nh3
+        self.c_dhvap = c.getfloat('dhvap')  # average value for enthalpy of condensation [J/mol]
+        self.c_mcool = c.getfloat('mcool')  # mass flow of coolant [kg/s]
+        self.c_cpcool = c.getfloat('cpcool')   # heat capacity of coolant [kg/s]
+        self.c_Tcoolin = c.getfloat('Tcoolin')  # coolant inlet temp [K]
+        self.c_rcool = c.getfloat('rcool')  # density of coolant [kg/m3]
+        self.c_kcool = c.getfloat('kcool')  # thermal conductivity of coolant [W/mK]
+        self.c_vcool = c.getfloat('vcool')  # dynamic viscosity of coolant [Pas]
+        self.c_velcool = self.c_mcool / (numpy.pi * (self.c_r3 ** 2 - self.c_r2 ** 2)) / self.c_numb
+        self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
+        self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
+        self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
+        self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
 
-'''
+
+
 
 class OutOps:
     """A configuration class to store output options."""
