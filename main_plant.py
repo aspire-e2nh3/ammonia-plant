@@ -388,7 +388,7 @@ def plant_figure(chosen_solution, power):
     # decide how to pass in the variables for multiple runs
 
 
-def single_run():
+def single_run(args):
     cfg, ops = get_configs(args)
     ops.TERMINAL_LOG = True
     streamtemp,powertemp = evaluate_loop(cfg,ops,1)
@@ -404,11 +404,12 @@ def read_and_plot():
        'recycle_ratio_mol', 'recycle_ratio_mass', 'ammonia_produced',
        'ammonia_removed', 'n2_m_s', 'h2_m_s', 'exotherm_minus_heatloss', 'Purged'
     '''
-    chosen_solution = "condensor"
+    chosen_solution = "condenser"
     power = pandas.read_csv('outputs/power.csv',index_col=0,header=0)
     print(power.index)
     plant_figure(chosen_solution, power)
 
 
 if __name__ == "__main__":
-    single_run()
+    args.configuration = ['30kg_plant.ini']
+    single_run(args)
