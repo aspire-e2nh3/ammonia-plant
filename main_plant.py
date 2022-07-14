@@ -120,7 +120,6 @@ def evaluate_loop(cfg, ops, id_run):
                     cfg.plant_pressure - 2)
     count = 0
     stop = 0
-    he_det = Heat_Exchanger_Details()
     Pipe_purged = State(0,0,0,273,200)
     note = ''
     while (stop == 0):
@@ -177,8 +176,10 @@ def evaluate_loop(cfg, ops, id_run):
 
 
         #[Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=cfg.condenser_water_mfr, T_cin=cfg.condenser_T_cold_in)
-
-        [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser(Pipe_2b, cfg)
+        if cfg.c_shell:
+            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser_shell(Pipe_2b, cfg)
+        else:
+            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser(Pipe_2b, cfg)
 
         ammonia_produced = Pipe_2b.NH3 - Pipe_2c.NH3
         ammonia_removed = ammonia_produced/Pipe_2b.NH3
