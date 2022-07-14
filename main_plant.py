@@ -388,7 +388,7 @@ def plant_figure(chosen_solution, power):
     # decide how to pass in the variables for multiple runs
 
 
-def single_run():
+def single_run(args):
     cfg, ops = get_configs(args)
     ops.TERMINAL_LOG = True
     streamtemp,powertemp = evaluate_loop(cfg,ops,1)
@@ -411,4 +411,5 @@ def read_and_plot():
 
 
 if __name__ == "__main__":
-    single_run()
+    args.configuration = ['30kg_plant.ini']
+    single_run(args)
