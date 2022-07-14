@@ -404,7 +404,7 @@ def read_and_plot():
        'recycle_ratio_mol', 'recycle_ratio_mass', 'ammonia_produced',
        'ammonia_removed', 'n2_m_s', 'h2_m_s', 'exotherm_minus_heatloss', 'Purged'
     '''
-    chosen_solution = "condensor"
+    chosen_solution = "condenser"
     power = pandas.read_csv('outputs/power.csv',index_col=0,header=0)
     print(power.index)
     plant_figure(chosen_solution, power)
