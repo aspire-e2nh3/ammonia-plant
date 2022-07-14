@@ -5,7 +5,7 @@ from genericpath import exists
 import os
 import configparser
 
-import numpy
+import numpy as np
 
 class SSConfig:
     """
@@ -91,14 +91,23 @@ class SSConfig:
         self.he_T_ext = he.getfloat('T ext')
 
         c = config["condenser"]
-
+        self.c_shell = 'shell' in c.get('type')
         self.c_r1 = c.getfloat('r1')  # inner rad of inner ammonia pipe [m]
         self.c_r2 = c.getfloat('r2')  # outer rad of inner pipe [m]
         self.c_r3 = c.getfloat('r3')  # inner rad of outer coolant pipe [m]
-        self.c_hyd = 2 * (self.c_r3 - self.c_r2)  # hydraulic diameter of cooling channel [m]
+        self.c_r4 = c.getfloat('r4')
         self.c_length = c.getfloat('length')
         self.c_numb = c.getint('numb')
-        
+        if self.c_shell:
+            self.c_hyd = 2 * (self.c_r4**2 - self.c_numb * self.c_r2**2) / (self.c_r4 + self.c_numb * self.c_r2)
+            if (self.c_r4**2) < (self.c_numb * self.c_r2**2):
+                print('ERROR: Condenser flow area negative. Resize condenser')
+            elif (self.c_r4**2) < (self.c_numb * self.c_r2**2)/0.907:
+                print('ERROR: Condenser packing better than hexagonal. Resize condenser')
+            elif (self.c_r4**2) < (self.c_numb * self.c_r2**2)/0.82:
+                print('CAUTION: Condenser packing better than random packing. Ensure condenser sizing is correct')
+        else:
+            self.c_hyd = 2 * (self.c_r3 - self.c_r2)  # hydraulic diameter of cooling channel [m]
         self.c_ix = c.getint('ix')  # number of elements along heat exchanger
         self.c_jints = c.getint('jints')  # max number of iterations
         self.c_kval = c.getfloat('kval')  # thermal conductivity of pipe [W/mK]
@@ -112,11 +121,18 @@ class SSConfig:
         self.c_rcool = c.getfloat('rcool')  # density of coolant [kg/m3]
         self.c_kcool = c.getfloat('kcool')  # thermal conductivity of coolant [W/mK]
         self.c_vcool = c.getfloat('vcool')  # dynamic viscosity of coolant [Pas]
-        self.c_velcool = self.c_mcool / (numpy.pi * (self.c_r3 ** 2 - self.c_r2 ** 2)) / self.c_numb
-        self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
-        self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
-        self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
-        self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
+        if self.c_shell:
+            self.c_velcool = self.c_mcool / (np.pi * (self.c_r4 ** 2 - self.c_numb * self.c_r2 ** 2))
+            self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
+            self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
+            self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
+            self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
+        else:
+            self.c_velcool = self.c_mcool / (np.pi * (self.c_r3 ** 2 - self.c_r2 ** 2)) / self.c_numb
+            self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
+            self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
+            self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
+            self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
 
 
 
