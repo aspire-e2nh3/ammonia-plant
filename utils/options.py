@@ -52,9 +52,11 @@ class SSConfig:
         self.plant_max_iter               = plant.getfloat('max iter')
         self.plant_recycle_estimate       = plant.getfloat('recycle estimate')
 
+
         precooler = config["precooler"]
-        self.precooler_water_mfr    = precooler.getfloat('water_mfr')
-        self.precooler_T_cold_in    = precooler.getfloat('T_cold_in')
+        self.precooler_water_mfr    = precooler.getfloat('water mass flow rate')
+        self.precooler_T_cold_in    = precooler.getfloat('T water in')
+        self.precooler_T_outlet      = precooler.getfloat('T precooler outlet')
 
         self.n2compressor_dT        = config.getfloat('n2 compressor', 'dT')
 
@@ -63,11 +65,55 @@ class SSConfig:
         self.recompressor_eta       = config.getfloat('recompressor', 'eta')
 
         reactor = config["reactor"]
-        self.reactor_T_IN           = reactor.getfloat('T_IN')
+
         self.reactor_T_1c           = reactor.getfloat('T_1c')
         self.reactor_length         = reactor.getfloat('length')
         self.reactor_diameter       = reactor.getfloat('diameter')
-        self.reactor_minimum_step   = reactor.getfloat('minimum_step')
+
+
+        self.reactor_r              = self.reactor_diameter/2
+        self.reactor_cs_area        = np.pi * self.reactor_r ** 2  # m^2
+        self.reactor_in_circum      = np.pi * self.reactor_r * 2
+        self.reactor_surrounding_T  = reactor.getfloat('surrounding T')
+        min = reactor.getfloat('minimum_step')
+        log = reactor.getint('log divs')
+        split = reactor.getfloat('split point')*self.reactor_length
+        lin = reactor.getint('lin divs')
+        # generate vect
+
+        self.reactor_vect = [0] + np.geomspace(min, split, log, endpoint=False).tolist() + \
+                    np.linspace(split, self.reactor_length, lin).tolist()
+
+        self.reactor_vectlen = len(self.reactor_vect)
+
+        self.reactor_strength       = reactor.getfloat('wall strength') #MPa
+        self.reactor_sf             = reactor.getint('safety factor')
+        self.reactor_shell_density  = reactor.getfloat('shell density')
+        self.reactor_cat_density    = reactor.getfloat('catalyst density')
+        self.reactor_stress         = self.reactor_strength * 10 ** 6 / self.reactor_sf
+        self.reactor_thickness      = self.plant_pressure * 10 ** 5 * self.reactor_r / self.reactor_stress
+        self.reactor_OD             = self.reactor_diameter + self.reactor_thickness * 2
+        self.reactor_out_circum     = np.pi * self.reactor_OD
+        self.reactor_shell_volume   = self.reactor_thickness * np.pi * (self.reactor_length * 2 * self.reactor_r + self.reactor_r ** 2 * 4 / 3)
+        self.reactor_cat_volume     = self.reactor_r ** 2 * self.reactor_length * np.pi
+        self.reactor_shell_mass     = self.reactor_shell_volume * self.reactor_shell_density
+        self.reactor_cat_mass       = self.reactor_cat_volume * self.reactor_cat_density
+
+        self.reactor_shell_kval = reactor.getfloat('shell thermal conductivity')
+        self.reactor_insul_kval = reactor.getfloat('insulation thermal conductivity')
+        self.reactor_insul_thickness = reactor.getfloat('insulation thickness')
+        self.reactor_external_htc = reactor.getfloat('external heat transfer coefficient')
+
+        self.reactor_coolant_mfr = 0.03 # kg/s
+        self.reactor_coolant_channel = 0.005 # m
+        self.reactor_coolant_rho = 680.2  # kg/m3
+        self.reactor_coolant_mu = 0.13 * 0.001  # Pa/s
+        self.reactor_coolant_cp = 2701  # J/kg/K
+        self.reactor_coolant_k = 0.0779  # W/m/K
+        self.reactor_coolant_T = 298  # K
+
+
+
 
         
         he = config["heat exchanger"]
