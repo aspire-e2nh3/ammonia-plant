@@ -63,22 +63,17 @@ def evaluate_loop(cfg, ops, id_run):
     if ops.TERMINAL_LOG:
         print("Log for run_%d" % id_run)
 
-    # initial inputs - define bed structure, quench ratio
-    bed1 = Bed(cfg.reactor_length,
-               cfg.reactor_diameter,
-               cfg.reactor_minimum_step,
-               log_divs=19, lin_divs=100)
-    shell_mass, cat_mass = bed1.shell_mass, bed1.cat_mass
+    # shell_mass, cat_mass = cfg.reactor_shell_mass, cfg.reactor_cat_mass
 
 
     # set reactor inlet temp
-    reactor_in_temp = cfg.reactor_T_1c
+
 
     # initialise iteration limits
-    inlet_temp = cfg.reactor_T_IN
+    inlet_temp = cfg.precooler_T_outlet
     HTHE_P = 27000 * cfg.plant_h2/0.3
 
-    recycle_estimate = 8
+
 
     # initialise power consumption dictionary
     power_consumption = {}
@@ -110,13 +105,13 @@ def evaluate_loop(cfg, ops, id_run):
         print('Mixed Feed pre-cooling = %3.1f' % Pipe_IN_uncooled.T, 'K')
     '''
     [Pipe_IN, power_consumption["inflow cooling"], effectiveness_precooler] = heat_exchanger_water2gas(Pipe_IN_uncooled,
-                                                                                                       T_end=cfg.reactor_T_IN,
+                                                                                                       T_end=cfg.precooler_T_outlet,
                                                                                                        T_cin=cfg.precooler_water_mfr)
 
     Pipe_RE = State(cfg.plant_recycle_estimate * cfg.plant_h2,
                     cfg.plant_recycle_estimate * cfg.plant_n2,
                     0.5 * cfg.plant_n2,
-                    cfg.reactor_T_IN,
+                    cfg.precooler_T_outlet,
                     cfg.plant_pressure - 2)
     count = 0
     stop = 0
@@ -150,7 +145,7 @@ def evaluate_loop(cfg, ops, id_run):
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ BED 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,bed1)
+        [Pipe_2a,exotherm_reac,heatloss_reac,Bed_data] = reactor(Pipe_1d,cfg)
         #print(Pipe_2a.T)
         Pipe_2a.p -= 10*(Pipe_1d.mol_tot/cfg.plant_max_mol)**2
 
@@ -228,11 +223,12 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption['heat_exchanger_effectiveness'] = effectiveness_heatex
     power_consumption["heat_exchanger_heatloss"] = heat_ex_heatloss
 
-    vel_in_reactor = Pipe_1d.volume_fr/bed1.cs_area
+    vel_in_reactor = Pipe_1d.volume_fr/cfg.reactor_cs_area
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
-    power_consumption["ammonia_%_removed"] = ammonia_removed * 100
 
+    power_consumption["condenser water out temp"] = condenser_water_out_temp
+    power_consumption["ammonia_%_removed"] = ammonia_removed * 100
 
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass
@@ -248,7 +244,7 @@ def evaluate_loop(cfg, ops, id_run):
     if ops.REACTOR_BED:
 
         Bed_data_T = np.array(Bed_data).T.tolist()
-        x_plot_data = bed1.vect
+        x_plot_data = cfg.reactor_vect
         y_plot_data = Bed_data_T[3]
         plt.plot(x_plot_data, y_plot_data)
         plt.title("Reactor Bed Temeprature Profile")

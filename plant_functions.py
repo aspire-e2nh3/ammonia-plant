@@ -428,6 +428,7 @@ def tristan_condenser_shell(s_in, cfg):
 
         dqsum = 0 #reset heat integration variable
         qflowsum = 0
+        qcondsum = 0
 
         for ii in range(0, cfg.c_ix):
 
@@ -451,7 +452,11 @@ def tristan_condenser_shell(s_in, cfg):
             nusmix = 0.023 * reymix ** 0.8 * prmix ** 0.4
             htc1 = nusmix * s.k / (2 * cfg.c_r1)
 
-            Uval = 2 * np.pi * dx / (1 / (htc1 * cfg.c_r1) + np.log(cfg.c_r2 / cfg.c_r1) / cfg.c_kval + 1 / (cfg.c_htc2 * cfg.c_r2))
+            u_part1 = 1 / (htc1 * cfg.c_r1)
+            u_part2 = np.log(cfg.c_r2 / cfg.c_r1) / cfg.c_kval
+            u_part3 = 1 / (cfg.c_htc2 * cfg.c_r2)
+
+            Uval = 2 * np.pi * dx / (u_part1 + u_part2 + u_part3)
 
             #determine heat flow from mixture to coolant in that element
             dq[ii] = Uval * (Tmix[ii] - Tcool[ii]) * cfg.c_numb * relax
@@ -477,8 +482,9 @@ def tristan_condenser_shell(s_in, cfg):
 
 
             qflowsum += qflow
+            qcondsum += conact * nlost * cfg.c_dhvap
             s.NH3 -= conact * nlost  # reduce molar flow of gaseous ammonia as ammonia is condensed
-            s.update()
+            s.update_fast()
 
             savnnh3[ii] = s.NH3
             savxnh3[ii] = s.yNH3
@@ -591,7 +597,7 @@ def condenser_crude(s, water_mass_flow=1, T_cin=10+273):
     return s_out, power, ammonia_removed, T_cout
 
 
-def reactor(s_in, b):  # mol/s, K, Pa
+def reactor(s_in, cfg):  # mol/s, K, Pa
     """
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 
@@ -606,10 +612,10 @@ def reactor(s_in, b):  # mol/s, K, Pa
     heat_loss_tot = 0
     bed_data = [s.store()]
 
-    for X in range(b.vectlen - 1):
+    for X in range(cfg.reactor_vectlen - 1):
         # setup new step
-        dX = b.vect[X + 1] - b.vect[X]
-        # [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
+        dX = cfg.reactor_vect[X + 1] - cfg.reactor_vect[X]
+        # [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, cfg.reactor_cs_area)
 
         # initial concentrations
         T = s.T
@@ -650,25 +656,25 @@ def reactor(s_in, b):  # mol/s, K, Pa
                          - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
 
         # change in molars
-        s.N2 += dX * RR_N2 * b.cs_area
-        s.H2 += dX * RR_H2 * b.cs_area
-        s.NH3 += dX * RR_NH3 * b.cs_area
+        s.N2 += dX * RR_N2 * cfg.reactor_cs_area
+        s.H2 += dX * RR_H2 * cfg.reactor_cs_area
+        s.NH3 += dX * RR_NH3 * cfg.reactor_cs_area
 
         # change in temp
-        exotherm = -dX * b.cs_area * Del_H * RR_NH3
+        exotherm = -dX * cfg.reactor_cs_area * Del_H * RR_NH3
 
-        vel = s.volume_fr / b.cs_area
-        rey = s.rho * 2 * b.r * vel / s.mu
+        vel = s.volume_fr / cfg.reactor_cs_area
+        rey = s.rho * 2 * cfg.reactor_r * vel / s.mu
         pr = s.mu * s.cp / s.k
         nus = 0.023 * rey ** 0.8 * pr ** 0.4
-        htc = nus * s.k / b.r
+        htc = nus * s.k / cfg.reactor_r
 
-        Uval = 2 * np.pi * dX / (1 / (htc * b.r)
-                                 + np.log((b.r + b.thickness) / b.r) / b.shell_kval
-                                 + np.log((b.r + b.thickness + b.insul_thickness)/(b.r + b.thickness))/b.insul_kval
-                                 + 1 / (b.external_htc * (b.r + b.thickness)))
+        Uval = 2 * np.pi * dX / (1 / (htc * cfg.reactor_r)
+                                 + np.log((cfg.reactor_r + cfg.reactor_thickness) / cfg.reactor_r) / cfg.reactor_shell_kval
+                                 + np.log((cfg.reactor_r + cfg.reactor_thickness + cfg.reactor_insul_thickness)/(cfg.reactor_r + cfg.reactor_thickness))/cfg.reactor_insul_kval
+                                 + 1 / (cfg.reactor_external_htc * (cfg.reactor_r + cfg.reactor_thickness)))
 
-        heat_loss = Uval * (s.T - b.coolant_T)
+        heat_loss = Uval * (s.T - cfg.reactor_coolant_T)
 
         s.T += (exotherm - heat_loss) / (s.cp * s.mass_tot)
 
@@ -697,10 +703,10 @@ def reactor_coolant(s_in, b):  # mol/s, K, Pa
     heat_loss_tot = 0
     bed_data = [s.store()]
 
-    for X in range(b.vectlen - 1):
+    for X in range(cfg.reactor_vectlen - 1):
         # setup new step
-        dX = b.vect[X + 1] - b.vect[X]
-        # [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
+        dX = cfg.reactor_vect[X + 1] - cfg.reactor_vect[X]
+        # [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, cfg.reactor_cs_area)
 
         # initial concentrations
         T = s.T
@@ -739,129 +745,30 @@ def reactor_coolant(s_in, b):  # mol/s, K, Pa
                          - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
 
         # change in molars
-        s.N2 += dX * RR_N2 * b.cs_area
-        s.H2 += dX * RR_H2 * b.cs_area
-        s.NH3 += dX * RR_NH3 * b.cs_area
+        s.N2 += dX * RR_N2 * cfg.reactor_cs_area
+        s.H2 += dX * RR_H2 * cfg.reactor_cs_area
+        s.NH3 += dX * RR_NH3 * cfg.reactor_cs_area
 
         # change in temp
-        exotherm = -dX * b.cs_area * Del_H * RR_NH3
+        exotherm = -dX * cfg.reactor_cs_area * Del_H * RR_NH3
 
-        vel = s.volume_fr / b.cs_area
-        rey = s.rho * 2 * b.r * vel / s.mu
+        vel = s.volume_fr / cfg.reactor_cs_area
+        rey = s.rho * 2 * cfg.reactor_r * vel / s.mu
         pr = s.mu * s.cp / s.k
         nus = 0.023 * rey ** 0.8 * pr ** 0.4
-        htc = nus * s.k / b.r
+        htc = nus * s.k / cfg.reactor_r
 
-        vel_c = (b.coolant_mfr / b.coolant_rho) / (2 * b.coolant_channel * b.length)
-        rey_c = b.coolant_rho * np.pi * (b.r + b.thickness) * vel_c / b.coolant_mu
-        pr_c = b.coolant_mu * b.coolant_cp / b.coolant_k
+        vel_c = (cfg.reactor_coolant_mfr / cfg.reactor_coolant_rho) / (2 * cfg.reactor_coolant_channel * cfg.reactor_length)
+        rey_c = cfg.reactor_coolant_rho * np.pi * (cfg.reactor_r + cfg.reactor_thickness) * vel_c / cfg.reactor_coolant_mu
+        pr_c = cfg.reactor_coolant_mu * cfg.reactor_coolant_cp / cfg.reactor_coolant_k
         nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
-        htc_c = nus_c * b.coolant_k / (b.r + b.thickness)
+        htc_c = nus_c * cfg.reactor_coolant_k / (cfg.reactor_r + cfg.reactor_thickness)
 
-        Uval = 2 * np.pi * dX / (1 / (htc * b.in_circum)
-                                 + np.log((b.r + b.thickness) / b.r) / b.shell_kval
-                                 + 1 / (htc_c * (b.r + b.thickness)))
+        Uval = 2 * np.pi * dX / (1 / (htc * cfg.reactor_in_circum)
+                                 + np.log((cfg.reactor_r + cfg.reactor_thickness) / cfg.reactor_r) / cfg.reactor_shell_kval
+                                 + 1 / (htc_c * (cfg.reactor_r + cfg.reactor_thickness)))
 
-        heat_loss = Uval * (s.T - b.coolant_T)
-
-        s.T += (exotherm - heat_loss) / (s.cp * s.mass_tot)
-
-        # update state
-        s.update_fast()
-
-        bed_data.append(s.store())
-        exotherm_tot += exotherm
-        heat_loss_tot += heat_loss
-
-    return s, exotherm_tot, heat_loss_tot, bed_data
-
-
-def reactor_selfcooled(s_in, b):  # mol/s, K, Pa
-    """
-    An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
-
-    :param  s: state class. Should include at least some NH3 or reaction will shoot up
-            dX: X step.
-            area: area of reactor bed.
-
-    :return s: state class
-    """
-    s = copy.copy(s_in)
-
-    ext_bed = np.full(273,0,float)
-    int_bed = np.full(273,0,float)
-
-
-    exotherm_tot = 0
-    heat_loss_tot = 0
-    bed_data = [s.store()]
-
-    for X in range(b.vectlen - 1):
-        # setup new step
-        dX = b.vect[X + 1] - b.vect[X]
-        # [s_bed_temp, exotherm] = reactorStep(s_bed_temp, dX, b.cs_area)
-
-        # initial concentrations
-        T = s.T
-        P = s.p
-
-        # activity coefficients for all species
-        N2fuga = 0.93431737 + 0.3101804 * 10 ** -3 * T + 0.295895 * 10 ** -3 * P - 0.270729 * 10 ** -6 * T ** 2 + \
-                 0.4775207 * 10 ** -6 * P ** 2
-        H2fuga = math.exp(math.exp(-3.8402 * T ** 0.125 + 0.541) * P - math.exp(-0.1263 * T ** 0.5 - 15.980) * P ** 2 +
-                          300 * math.exp(-0.011901 * T - 5.941) * (math.exp(-P / 300) - 1))
-        NH3fuga = 0.1438996 + 0.2028538 * 10 ** -2 * T - 0.4487672 * 10 ** -3 * P - 0.1142945 * 10 ** -5 * T ** 2 + \
-                  0.2761216 * 10 ** -6 * P ** 2
-        a_N2 = s.yN2 * N2fuga * P  # bar
-        a_H2 = s.yH2 * H2fuga * P  # bar
-        a_NH3 = s.yNH3 * NH3fuga * P  # bar
-
-        # reaction rate constant
-        Ea = 1.7056 * 10 ** 5  # J/mol
-        R = 8.31446261815324  # J/K/mol
-        k0 = 8.8490 * 10 ** 17  # mol/m^3
-        k_r = k0 * math.exp(-Ea / (R * T))  # mol/m^3/h
-
-        # equilibrium constant
-        K_eq = math.pow(10, -2.691122 * math.log(T, 10) - 5.519265 * 10 ** -5 * T + 1.848863 * 10 ** -7 * T ** 2
-                        + 2001.6 / T + 2.67899)
-
-        # Reaction Rate per unit volume_fr
-        alpha = 0.5
-        RR_NH3 = k_r * (K_eq ** 2 * a_N2 * (a_H2 ** 3 / (a_NH3 ** 2)) ** alpha
-                        - (a_NH3 ** 2 / (a_H2 ** 3)) ** (1 - alpha)) / 3600
-        RR_N2 = -1 / 2 * RR_NH3
-        RR_H2 = -3 / 2 * RR_NH3
-
-        # Heat of Reaction
-        Del_H = 4.184 * (-(0.54526 + 846.609 / T + 459.734 * 10 ** 6 * T ** -3) * P - 5.34685 * T
-                         - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
-
-        # change in molars
-        s.N2 += dX * RR_N2 * b.cs_area
-        s.H2 += dX * RR_H2 * b.cs_area
-        s.NH3 += dX * RR_NH3 * b.cs_area
-
-        # change in temp
-        exotherm = -dX * b.cs_area * Del_H * RR_NH3
-
-        vel = s.volume_fr / b.cs_area
-        rey = s.rho * 2 * b.r * vel / s.mu
-        pr = s.mu * s.cp / s.k
-        nus = 0.023 * rey ** 0.8 * pr ** 0.4
-        htc = nus * s.k / b.r
-
-        vel_c = (b.coolant_mfr / b.coolant_rho) / (2 * b.coolant_channel * b.length)
-        rey_c = b.coolant_rho * np.pi * (b.r + b.thickness) * vel_c / b.coolant_mu
-        pr_c = b.coolant_mu * b.coolant_cp / b.coolant_k
-        nus_c = 0.023 * rey_c ** 0.8 * pr_c ** 0.4
-        htc_c = nus_c * b.coolant_k / (b.r + b.thickness)
-
-        Uval = 2 * np.pi * dX / (1 / (htc * b.in_circum)
-                                 + np.log((b.r + b.thickness) / b.r) / b.shell_kval
-                                 + 1 / (htc_c * (b.r + b.thickness)))
-
-        heat_loss = Uval * (s.T - b.coolant_T)
+        heat_loss = Uval * (s.T - cfg.reactor_coolant_T)
 
         s.T += (exotherm - heat_loss) / (s.cp * s.mass_tot)
 
