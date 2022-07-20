@@ -82,7 +82,7 @@ class SSConfig:
         # generate vect
 
         self.reactor_vect = [0] + np.geomspace(min, split, log, endpoint=False).tolist() + \
-                    np.linspace(split, self.reactor_length, lin).tolist()
+                    np.linspace(split, self.reactor_length, lin-1).tolist()
 
         self.reactor_vectlen = len(self.reactor_vect)
 
@@ -104,15 +104,13 @@ class SSConfig:
         self.reactor_insul_thickness = reactor.getfloat('insulation thickness')
         self.reactor_external_htc = reactor.getfloat('external heat transfer coefficient')
 
-        self.reactor_coolant_mfr = 0.03 # kg/s
-        self.reactor_coolant_channel = 0.005 # m
-        self.reactor_coolant_rho = 680.2  # kg/m3
-        self.reactor_coolant_mu = 0.13 * 0.001  # Pa/s
-        self.reactor_coolant_cp = 2701  # J/kg/K
-        self.reactor_coolant_k = 0.0779  # W/m/K
-        self.reactor_coolant_T = 298  # K
-
-
+        self.reactor_coolant_mfr = reactor.getfloat('coolant mass flow rate')
+        self.reactor_coolant_channel = reactor.getfloat('coolant channel width')
+        self.reactor_coolant_rho = reactor.getfloat('coolant density')
+        self.reactor_coolant_mu = reactor.getfloat('coolant viscosity')
+        self.reactor_coolant_cp = reactor.getfloat('coolant heat capacity')
+        self.reactor_coolant_k = reactor.getfloat('coolant thermal conductivity')
+        self.reactor_coolant_T = reactor.getfloat('coolant inlet T')
 
 
         
@@ -179,7 +177,8 @@ class SSConfig:
             self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
             self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
             self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
-
+        if self.c_velcool > 100:
+            print('CAUTION: Condenser coolant velocity over 100m/s')
 
 
 

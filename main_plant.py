@@ -63,19 +63,17 @@ def evaluate_loop(cfg, ops, id_run):
     if ops.TERMINAL_LOG:
         print("Log for run_%d" % id_run)
 
-    # initial inputs - define bed structure, quench ratio
-
-    shell_mass, cat_mass = cfg.reactor_shell_mass, cfg.reactor_cat_mass
+    # shell_mass, cat_mass = cfg.reactor_shell_mass, cfg.reactor_cat_mass
 
 
     # set reactor inlet temp
-    reactor_in_temp = cfg.reactor_T_1c
+
 
     # initialise iteration limits
     inlet_temp = cfg.precooler_T_outlet
     HTHE_P = 27000 * cfg.plant_h2/0.3
 
-    recycle_estimate = 8
+
 
     # initialise power consumption dictionary
     power_consumption = {}
@@ -228,8 +226,9 @@ def evaluate_loop(cfg, ops, id_run):
     vel_in_reactor = Pipe_1d.volume_fr/cfg.reactor_cs_area
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
-    power_consumption["ammonia_%_removed"] = ammonia_removed * 100
 
+    power_consumption["condenser water out temp"] = condenser_water_out_temp
+    power_consumption["ammonia_%_removed"] = ammonia_removed * 100
 
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass

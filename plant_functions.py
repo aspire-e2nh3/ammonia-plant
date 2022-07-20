@@ -428,6 +428,7 @@ def tristan_condenser_shell(s_in, cfg):
 
         dqsum = 0 #reset heat integration variable
         qflowsum = 0
+        qcondsum = 0
 
         for ii in range(0, cfg.c_ix):
 
@@ -451,7 +452,11 @@ def tristan_condenser_shell(s_in, cfg):
             nusmix = 0.023 * reymix ** 0.8 * prmix ** 0.4
             htc1 = nusmix * s.k / (2 * cfg.c_r1)
 
-            Uval = 2 * np.pi * dx / (1 / (htc1 * cfg.c_r1) + np.log(cfg.c_r2 / cfg.c_r1) / cfg.c_kval + 1 / (cfg.c_htc2 * cfg.c_r2))
+            u_part1 = 1 / (htc1 * cfg.c_r1)
+            u_part2 = np.log(cfg.c_r2 / cfg.c_r1) / cfg.c_kval
+            u_part3 = 1 / (cfg.c_htc2 * cfg.c_r2)
+
+            Uval = 2 * np.pi * dx / (u_part1 + u_part2 + u_part3)
 
             #determine heat flow from mixture to coolant in that element
             dq[ii] = Uval * (Tmix[ii] - Tcool[ii]) * cfg.c_numb * relax
@@ -477,8 +482,9 @@ def tristan_condenser_shell(s_in, cfg):
 
 
             qflowsum += qflow
+            qcondsum += conact * nlost * cfg.c_dhvap
             s.NH3 -= conact * nlost  # reduce molar flow of gaseous ammonia as ammonia is condensed
-            s.update()
+            s.update_fast()
 
             savnnh3[ii] = s.NH3
             savxnh3[ii] = s.yNH3
