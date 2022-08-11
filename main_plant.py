@@ -71,8 +71,8 @@ def evaluate_loop(cfg, ops, id_run):
 
     # initialise iteration limits
     inlet_temp = cfg.precooler_T_outlet
-    HTHE_P = 27000 * cfg.plant_h2/0.3
-
+    heat_ex_hot2cold = 27000 * cfg.plant_h2/0.3
+    heat_ex_cold2ext = heat_ex_hot2cold*0.3
 
 
     # initialise power consumption dictionary
@@ -132,7 +132,7 @@ def evaluate_loop(cfg, ops, id_run):
                                                                      eta=cfg.recompressor_eta)
 
         # Add heat from Low Temp Heat Exchanger to Pipe 1b to make Pipe 1c
-        Pipe_1c = heater_power(Pipe_1b,HTHE_P)
+        Pipe_1c = heater_power(Pipe_1b,heat_ex_hot2cold-heat_ex_cold2ext)
 
         # heat/cool to 673K
         [Pipe_1d, power_consumption["heater"]] = heater(Pipe_1c, cfg.reactor_T_1c, no_cooling=False)
@@ -153,13 +153,9 @@ def evaluate_loop(cfg, ops, id_run):
 
         # estimate heat exchange variant
 
-        [Pipe_2b, Pipe_1c_fake, HTHE_P_new, heat_ex_heatloss,he_eff] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
+        [Pipe_2b, Pipe_1c_fake, heat_ex_hot2cold, heat_ex_cold2ext, he_eff] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
         effectiveness_heatex = he_eff
 
-
-        #[Pipe_2b, Pipe_1c_fake, HTHE_DelT_new, effectiveness_heatex] = heat_exchanger_counter(Pipe_2a, Pipe_1b, T2out=cfg.reactor_T_1c)
-        HTHE_DelT_resid = abs(HTHE_P - HTHE_P_new)
-        HTHE_P = HTHE_P_new
 
         #print(f'HE eff = {effectiveness_heatex:0.4f}')
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,9 +215,10 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["reactor_out_temp"] = Bed_data[-1][3]
 
 
-    power_consumption["heat_exchanger_power_exchange"] = HTHE_P
+    power_consumption["heat_exchanger_hot2cold"] = heat_ex_hot2cold
+    power_consumption["heat_exchanger_cold2ext"] = heat_ex_cold2ext
     power_consumption['heat_exchanger_effectiveness'] = effectiveness_heatex
-    power_consumption["heat_exchanger_heatloss"] = heat_ex_heatloss
+
 
     vel_in_reactor = Pipe_1d.volume_fr/cfg.reactor_cs_area
     recycle_ratio_mol = ((Pipe_RE.mol_tot+Pipe_IN.mol_tot) / Pipe_IN.mol_tot)
@@ -271,7 +268,8 @@ def evaluate_loop(cfg, ops, id_run):
                                         'n2_mol_s',
                                         'nh3_mol_s',
                                         'temperature',
-                                        'pressure'
+                                        'pressure',
+                                        'heat'
                                         ],
                                index=pipe_locs
                                )
@@ -306,6 +304,7 @@ def multi_run(cfg, ops, param=None, vals=None):
     nh3_lst = []
     temperature_lst = []
     pressure_lst = []
+    heat_lst = []
 
     for i in range(n_runs):
         if rewrite_config:
@@ -319,6 +318,7 @@ def multi_run(cfg, ops, param=None, vals=None):
         nh3_lst.append(stream_temp['nh3_mol_s'].tolist())
         temperature_lst.append(stream_temp['temperature'].tolist())
         pressure_lst.append(stream_temp['pressure'].tolist())
+        heat_lst.append(stream_temp['heat'].tolist())
 
 
     stream_indices = stream_temp.index
@@ -329,9 +329,10 @@ def multi_run(cfg, ops, param=None, vals=None):
     nh3_data = pd.DataFrame(tps_lst(nh3_lst), index=stream_indices, columns=run_headers)
     temperature_data = pd.DataFrame(tps_lst(temperature_lst), index=stream_indices, columns=run_headers)
     pressure_data = pd.DataFrame(tps_lst(pressure_lst), index=stream_indices, columns=run_headers)
+    heat_data = pd.DataFrame(tps_lst(heat_lst), index=stream_indices, columns=run_headers)
 
 
-    return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data
+    return power_data, n2_data, h2_data, nh3_data, temperature_data, pressure_data, heat_data
 
 
 def params():
@@ -358,6 +359,7 @@ def main():
     nh3.to_csv('outputs/nh3.csv')
     temperature.to_csv('outputs/temperature.csv')
     pressure.to_csv('outputs/pressure.csv')
+    heat.to_csf('outputs/heat.csv')
 
 
     # power has a unique set of indices, see the following print out as an example:

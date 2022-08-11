@@ -202,7 +202,7 @@ def tristan_heat_exchanger(sh_in,sc_in,cfg):
             vel_h = sh.volume_fr / (cfg.he_numb * 2 * np.pi * cfg.he_r1 ** 2)
             rey_h = sh.rho * 2 * cfg.he_r1 * vel_h / sh.mu
             pr_h = sh.mu * sh.cp / sh.k
-            nus_h = 0.023 * rey_h ** 0.8 * pr_h ** 0.4
+            nus_h = 0.023 * rey_h ** 0.8 * pr_h ** 0.3
             htc_h = nus_h * sh.k / (2 * cfg.he_r1)
 
             vel_c = sc.volume_fr / (cfg.he_numb * np.pi * (cfg.he_r3 ** 2 - cfg.he_r2 ** 2))
@@ -610,6 +610,7 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
     s = copy.copy(s_in)
     exotherm_tot = 0
     heat_loss_tot = 0
+    pdrop_tot = 0
     bed_data = [s.store()]
 
     for X in range(cfg.reactor_vectlen - 1):
@@ -674,16 +675,25 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
                                  + np.log((cfg.reactor_r + cfg.reactor_thickness + cfg.reactor_insul_thickness)/(cfg.reactor_r + cfg.reactor_thickness))/cfg.reactor_insul_kval
                                  + 1 / (cfg.reactor_external_htc * (cfg.reactor_r + cfg.reactor_thickness)))
 
-        heat_loss = Uval * (s.T - cfg.reactor_coolant_T)
+        heat_loss = Uval * (s.T - cfg.reactor_ext_T)
+        inst_pressure_drop = ( 150 * s.mu * dX * (1 - cfg.reactor_void_frac) ** 2 / (cfg.reactor_cat_size ** 2 * cfg.reactor_void_frac ** 3) * vel +
+                               1.75 * s.rho * dX * (1 - cfg.reactor_void_frac) / (cfg.reactor_cat_size * cfg.reactor_void_frac ** 3) * vel ** 2 )
 
+        s.update_fast()
         s.T += (exotherm - heat_loss) / (s.cp * s.mass_tot)
 
-        # update state
+        s.p += -inst_pressure_drop/1e5
         s.update_fast()
+        # update state
 
-        bed_data.append(s.store())
+
+        bed_data.append(s.store() + [exotherm,heat_loss,s.cp,s.mass_tot])
         exotherm_tot += exotherm
         heat_loss_tot += heat_loss
+        pdrop_tot += -inst_pressure_drop
+
+
+
 
     return s, exotherm_tot, heat_loss_tot, bed_data
 
@@ -974,6 +984,8 @@ class State(object):
             self.update_fast()
         else:
             self.mol_tot = 0
+            self.cp = 0
+            self.mass_tot = 0
 
 
     def update(self):
@@ -1060,7 +1072,7 @@ class State(object):
         self.mu = self.myN2 * mu_N2 + self.myH2 * mu_H2 + self.myNH3 * mu_NH3
 
     def store(self):
-        return [self.H2, self.N2, self.NH3, self.T, self.p]
+        return [self.H2, self.N2, self.NH3, self.T, self.p, self.cp*self.T*self.mass_tot]
 
     def split(self,f):
         s1 = State(self.H2 * f, self.N2 * f, self.NH3 * f, self.T, self.p)

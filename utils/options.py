@@ -74,7 +74,7 @@ class SSConfig:
         self.reactor_r              = self.reactor_diameter/2
         self.reactor_cs_area        = np.pi * self.reactor_r ** 2  # m^2
         self.reactor_in_circum      = np.pi * self.reactor_r * 2
-        self.reactor_surrounding_T  = reactor.getfloat('surrounding T')
+
         min = reactor.getfloat('minimum_step')
         log = reactor.getint('log divs')
         split = reactor.getfloat('split point')*self.reactor_length
@@ -89,7 +89,10 @@ class SSConfig:
         self.reactor_strength       = reactor.getfloat('wall strength') #MPa
         self.reactor_sf             = reactor.getint('safety factor')
         self.reactor_shell_density  = reactor.getfloat('shell density')
-        self.reactor_cat_density    = reactor.getfloat('catalyst density')
+        self.reactor_cat_blk_density = reactor.getfloat('catalyst bulk density')
+        self.reactor_void_frac      = reactor.getfloat('catalyst void fraction')
+        self.reactor_cat_density    = reactor.getfloat('catalyst bulk density')*(1-self.reactor_void_frac)
+        self.reactor_cat_size       = reactor.getfloat('catalyst particle size')/1000 # convert to m
         self.reactor_stress         = self.reactor_strength * 10 ** 6 / self.reactor_sf
         self.reactor_thickness      = self.plant_pressure * 10 ** 5 * self.reactor_r / self.reactor_stress
         self.reactor_OD             = self.reactor_diameter + self.reactor_thickness * 2
@@ -99,10 +102,12 @@ class SSConfig:
         self.reactor_shell_mass     = self.reactor_shell_volume * self.reactor_shell_density
         self.reactor_cat_mass       = self.reactor_cat_volume * self.reactor_cat_density
 
+
         self.reactor_shell_kval = reactor.getfloat('shell thermal conductivity')
         self.reactor_insul_kval = reactor.getfloat('insulation thermal conductivity')
         self.reactor_insul_thickness = reactor.getfloat('insulation thickness')
         self.reactor_external_htc = reactor.getfloat('external heat transfer coefficient')
+        self.reactor_ext_T = reactor.getfloat('surrounding T')
 
         self.reactor_coolant_mfr = reactor.getfloat('coolant mass flow rate')
         self.reactor_coolant_channel = reactor.getfloat('coolant channel width')
