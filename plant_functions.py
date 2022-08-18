@@ -611,7 +611,7 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
     exotherm_tot = 0
     heat_loss_tot = 0
     pdrop_tot = 0
-    bed_data = [s.store()]
+    bed_data = [s.store() + [0,0,s.cp,s.mass_tot]]
 
     for X in range(cfg.reactor_vectlen - 1):
         # setup new step
@@ -693,7 +693,7 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
         pdrop_tot += -inst_pressure_drop
 
 
-
+    test = 3
 
     return s, exotherm_tot, heat_loss_tot, bed_data
 
