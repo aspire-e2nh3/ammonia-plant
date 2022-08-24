@@ -152,13 +152,13 @@ def evaluate_loop(cfg, ops, id_run):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 1 (Pipe 6 to Pipe 4) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         # estimate heat exchange variant
-
-        [Pipe_2b, Pipe_1c_fake, heat_ex_hot2cold, heat_ex_cold2ext, he_eff] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
-        effectiveness_heatex = he_eff
-
-
-        #print(f'HE eff = {effectiveness_heatex:0.4f}')
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ Heat exchanger 2 (outlet to water) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if cfg.he_concentric:
+            [Pipe_2b, Pipe_1c_fake, heat_ex_hot2cold, heat_ex_cold2ext, heat_ex_eff] = tristan_heat_exchanger(Pipe_2a, Pipe_1b, cfg)
+        else:
+            Pipe_2b = Pipe_2a
+            heat_ex_hot2cold = 0
+            heat_ex_cold2ext = 0
+            heat_ex_eff = 0
 
 
         # print(effectiveness_chiller)
@@ -168,9 +168,9 @@ def evaluate_loop(cfg, ops, id_run):
 
         #[Pipe_RE, power_consumption["Condenser"], ammonia_removed, condenser_water_out_temp] = condenser_crude(Pipe_2c, water_mass_flow=cfg.condenser_water_mfr, T_cin=cfg.condenser_T_cold_in)
         if cfg.c_shell:
-            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser_shell(Pipe_2b, cfg)
+            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp, coolant_p_drop] = tristan_condenser_shell(Pipe_2b, cfg)
         else:
-            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp] = tristan_condenser(Pipe_2b, cfg)
+            [Pipe_2c, power_consumption["Condenser"], condenser_water_out_temp, coolant_p_drop] = tristan_condenser(Pipe_2b, cfg)
 
         ammonia_produced = Pipe_2b.NH3 - Pipe_2c.NH3
         ammonia_removed = ammonia_produced/Pipe_2b.NH3
@@ -204,6 +204,7 @@ def evaluate_loop(cfg, ops, id_run):
     power_consumption["n2_m_s"] = cfg.plant_n2
     power_consumption["h2_m_s"] = cfg.plant_h2
     power_consumption["ammonia_produced"] = ammonia_produced
+    power_consumption["ammonia_mass_produced [kg/day]"] = ammonia_produced*17.03*3600*24/1000
 
     power_consumption['reactor_mol_in'] = Pipe_1d.mol_tot
     power_consumption["reactor_exotherm"] = exotherm_reac
@@ -217,7 +218,7 @@ def evaluate_loop(cfg, ops, id_run):
 
     power_consumption["heat_exchanger_hot2cold"] = heat_ex_hot2cold
     power_consumption["heat_exchanger_cold2ext"] = heat_ex_cold2ext
-    power_consumption['heat_exchanger_effectiveness'] = effectiveness_heatex
+    power_consumption['heat_exchanger_effectiveness'] = heat_ex_eff
 
 
     vel_in_reactor = Pipe_1d.volume_fr/cfg.reactor_cs_area
@@ -225,7 +226,10 @@ def evaluate_loop(cfg, ops, id_run):
     recycle_ratio_mass = ((Pipe_RE.mass_tot+Pipe_IN.mass_tot) / Pipe_IN.mass_tot)
 
     power_consumption["condenser water out temp"] = condenser_water_out_temp
+    power_consumption["condenser coolant p drop"] = coolant_p_drop
+
     power_consumption["ammonia_%_removed"] = ammonia_removed * 100
+
 
     power_consumption["recycle_ratio_mol"] = recycle_ratio_mol
     power_consumption["recycle_ratio_mass"] = recycle_ratio_mass

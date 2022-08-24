@@ -120,6 +120,7 @@ class SSConfig:
 
         
         he = config["heat exchanger"]
+        self.he_concentric = 'concentric' in he.get('type')
         self.he_r1 = he.getfloat('r1')
         self.he_r2 = he.getfloat('r2')
         self.he_r3 = he.getfloat('r3')
@@ -171,13 +172,13 @@ class SSConfig:
         self.c_kcool = c.getfloat('kcool')  # thermal conductivity of coolant [W/mK]
         self.c_vcool = c.getfloat('vcool')  # dynamic viscosity of coolant [Pas]
         if self.c_shell:
-            self.c_velcool = self.c_mcool / (np.pi * (self.c_r4 ** 2 - self.c_numb * self.c_r2 ** 2))
+            self.c_velcool = self.c_mcool /self.c_rcool/ (np.pi * (self.c_r4 ** 2 - self.c_numb * self.c_r2 ** 2))
             self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
             self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
             self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
             self.c_htc2 = self.c_nuscool * self.c_kcool / self.c_hyd
         else:
-            self.c_velcool = self.c_mcool / (np.pi * (self.c_r3 ** 2 - self.c_r2 ** 2)) / self.c_numb
+            self.c_velcool = self.c_mcool/self.c_rcool / (np.pi * (self.c_r3 ** 2 - self.c_r2 ** 2)) / self.c_numb
             self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
             self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
             self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4

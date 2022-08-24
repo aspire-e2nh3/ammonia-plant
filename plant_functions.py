@@ -384,7 +384,7 @@ def tristan_condenser(s_in, cfg):
 
 
     #return Tmix,Tcool,savnnh3,s,delpmix,delpcool,dqsum
-    return s,dqsum,Tcool[0]
+    return s,dqsum,Tcool[0],delpcool
 
 
 def tristan_condenser_shell(s_in, cfg):
@@ -519,11 +519,11 @@ def tristan_condenser_shell(s_in, cfg):
 
 
     friccool = 0.3164 * cfg.c_reycool ** -0.25
-    delpcool = friccool * cfg.c_rcool * cfg.c_velcool ** 2 * cfg.c_length / (2 * 2 * cfg.c_r1)
+    delpcool = friccool * cfg.c_rcool * cfg.c_velcool ** 2 * cfg.c_length / (2 * 2 * (cfg.c_r3-cfg.c_r2))
 
 
     #return Tmix,Tcool,savnnh3,s,delpmix,delpcool,dqsum
-    return s,dqsum,Tcool[0]
+    return s,dqsum,Tcool[0], delpcool
 
 
 def condenser(s, effectiveness=0.8, water_mfr=1, T_cin=10+273, Vmax=5, D=0.006):  ### check units!!
