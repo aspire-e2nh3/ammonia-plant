@@ -657,14 +657,14 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
                          - 0.2525 * 10 ** -3 * T ** 2 + 1.69197 * 10 ** -6 * T ** 3 - 9157.09)  # J/mol
 
         # change in molars
-        s.N2 += dX * RR_N2 * cfg.reactor_cs_area
-        s.H2 += dX * RR_H2 * cfg.reactor_cs_area
-        s.NH3 += dX * RR_NH3 * cfg.reactor_cs_area
+        s.N2 += dX * RR_N2 * cfg.reactor_cs_area * cfg.reactor_num_tubes
+        s.H2 += dX * RR_H2 * cfg.reactor_cs_area * cfg.reactor_num_tubes
+        s.NH3 += dX * RR_NH3 * cfg.reactor_cs_area * cfg.reactor_num_tubes
 
         # change in temp
-        exotherm = -dX * cfg.reactor_cs_area * Del_H * RR_NH3
+        exotherm = -dX * cfg.reactor_cs_area * Del_H * RR_NH3 * cfg.reactor_num_tubes
 
-        vel = s.volume_fr / cfg.reactor_cs_area
+        vel = s.volume_fr / (cfg.reactor_cs_area * cfg.reactor_num_tubes)
         rey = s.rho * 2 * cfg.reactor_r * vel / s.mu
         pr = s.mu * s.cp / s.k
         nus = 0.023 * rey ** 0.8 * pr ** 0.4
@@ -675,7 +675,7 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
                                  + np.log((cfg.reactor_r + cfg.reactor_thickness + cfg.reactor_insul_thickness)/(cfg.reactor_r + cfg.reactor_thickness))/cfg.reactor_insul_kval
                                  + 1 / (cfg.reactor_external_htc * (cfg.reactor_r + cfg.reactor_thickness)))
 
-        heat_loss = Uval * (s.T - cfg.reactor_ext_T)
+        heat_loss = Uval * (s.T - cfg.reactor_ext_T) * cfg.reactor_num_tubes
         inst_pressure_drop = ( 150 * s.mu * dX * (1 - cfg.reactor_void_frac) ** 2 / (cfg.reactor_cat_size ** 2 * cfg.reactor_void_frac ** 3) * vel +
                                1.75 * s.rho * dX * (1 - cfg.reactor_void_frac) / (cfg.reactor_cat_size * cfg.reactor_void_frac ** 3) * vel ** 2 )
 
@@ -693,12 +693,12 @@ def reactor(s_in, cfg):  # mol/s, K, Pa
         pdrop_tot += -inst_pressure_drop
 
 
-    test = 3
+
 
     return s, exotherm_tot, heat_loss_tot, bed_data
 
 
-def reactor_coolant(s_in, b):  # mol/s, K, Pa
+def reactor_coolant(s_in, cfg):  # mol/s, K, Pa
     """
     An iterative function to determine the change in state variables and reactants over the length of a reactor Bed step
 

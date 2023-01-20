@@ -68,7 +68,8 @@ class SSConfig:
 
         self.reactor_T_1c           = reactor.getfloat('T_1c')
         self.reactor_length         = reactor.getfloat('length')
-        self.reactor_diameter       = reactor.getfloat('diameter')
+        self.reactor_diameter       = reactor.getfloat('tube diameter')
+        self.reactor_num_tubes      = reactor.getint('number of tubes')|1
 
 
         self.reactor_r              = self.reactor_diameter/2
@@ -149,12 +150,12 @@ class SSConfig:
         self.c_length = c.getfloat('length')
         self.c_numb = c.getint('numb')
         if self.c_shell:
-            self.c_hyd = 2 * (self.c_r4**2 - self.c_numb * self.c_r2**2) / (self.c_r4 + self.c_numb * self.c_r2)
-            if (self.c_r4**2) < (self.c_numb * self.c_r2**2):
+            self.c_hyd = 2 * (self.c_r3**2 - self.c_numb * self.c_r2**2) / (self.c_r3 + self.c_numb * self.c_r2)
+            if (self.c_r3**2) < (self.c_numb * self.c_r2**2):
                 print('ERROR: Condenser flow area negative. Resize condenser')
-            elif (self.c_r4**2) < (self.c_numb * self.c_r2**2)/0.907:
-                print('ERROR: Condenser packing better than hexagonal. Resize condenser')
-            elif (self.c_r4**2) < (self.c_numb * self.c_r2**2)/0.82:
+            elif (self.c_r3**2) < (self.c_numb * self.c_r2**2)/0.907:
+                print('ERROR: Condenser packing better than perfect hexagonal. Resize condenser')
+            elif (self.c_r3**2) < (self.c_numb * self.c_r2**2)/0.82:
                 print('CAUTION: Condenser packing better than random packing. Ensure condenser sizing is correct')
         else:
             self.c_hyd = 2 * (self.c_r3 - self.c_r2)  # hydraulic diameter of cooling channel [m]
@@ -172,7 +173,7 @@ class SSConfig:
         self.c_kcool = c.getfloat('kcool')  # thermal conductivity of coolant [W/mK]
         self.c_vcool = c.getfloat('vcool')  # dynamic viscosity of coolant [Pas]
         if self.c_shell:
-            self.c_velcool = self.c_mcool /self.c_rcool/ (np.pi * (self.c_r4 ** 2 - self.c_numb * self.c_r2 ** 2))
+            self.c_velcool = self.c_mcool /self.c_rcool/ (np.pi * (self.c_r3 ** 2 - self.c_numb * self.c_r2 ** 2))
             self.c_reycool = self.c_rcool * self.c_velcool * self.c_hyd / self.c_vcool
             self.c_prcool = self.c_vcool * self.c_cpcool / self.c_kcool
             self.c_nuscool = 0.023 * self.c_reycool ** 0.8 * self.c_prcool ** 0.4
